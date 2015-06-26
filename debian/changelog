@@ -1,0 +1,5 @@
+mistral (2015.1.0-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #790144)
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 26 Jun 2015 23:17:28 +0200

@@ -1,0 +1,35 @@
+#!/bin/sh
+
+set -e
+
+CONF=/etc/mistral/mistral.conf
+
+#PKGOS-INCLUDE#
+
+if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
+	. /usr/share/debconf/confmodule
+	. /usr/share/dbconfig-common/dpkg/postinst
+
+	pkgos_var_user_group mistral
+
+	pkgos_write_new_conf mistral mistral.conf
+	pkgos_write_new_conf mistral logging.conf
+	pkgos_write_new_conf mistral wf_trace_logging.conf
+	db_get mistral/configure_db
+	if [ "$RET" = "true" ]; then
+		pkgos_dbc_postinst ${CONF} database connection mistral $@
+	fi
+	pkgos_rabbit_write_conf ${CONF} DEFAULT mistral
+	pkgos_write_admin_creds ${CONF} keystone_authtoken mistral
+
+#	db_get mistral/configure_db
+#	if [ "$RET" = "true" ]; then
+#		echo "Now calling mistral-db-manage sync: this may take a while..."
+#		su -s /bin/sh -c 'mistral-db-manage sync' mistral
+#	fi
+	db_stop
+fi
+
+#DEBHELPER#
+
+exit 0

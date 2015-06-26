@@ -1,0 +1,216 @@
+Source: mistral
+Section: net
+Priority: extra
+Maintainer: PKG OpenStack <openstack-devel@lists.alioth.debian.org>
+Uploaders: Thomas Goirand <zigo@debian.org>,
+Build-Depends: debhelper (>= 9),
+               dh-systemd,
+               openstack-pkg-tools (>= 22~),
+               po-debconf,
+               python-all,
+               python-pbr,
+               python-setuptools,
+               python-sphinx,
+Build-Depends-Indep: alembic (>= 0.7.2),
+                     python-amqplib,
+                     python-babel,
+                     python-cinderclient (>= 1:1.1.0),
+                     python-coverage,
+                     python-croniter,
+                     python-docutils,
+                     python-eventlet (>= 0.16.1),
+                     python-fixtures,
+                     python-glanceclient (>= 1:0.15.0),
+                     python-hacking,
+                     python-heatclient (>= 0.3.0),
+                     python-iso8601,
+                     python-jsonschema,
+                     python-keystoneclient (>= 1:1.1.0),
+                     python-keystonemiddleware (>= 1.5.0),
+                     python-kombu,
+                     python-lockfile,
+                     python-mock,
+                     python-networkx,
+                     python-neutronclient (>= 2.3.11),
+                     python-nose,
+                     python-novaclient (>= 2:2.22.0),
+                     python-oslo.config (>= 1:1.9.3),
+                     python-oslo.db (>= 1.7.0),
+                     python-oslo.messaging (>= 1.8.0),
+                     python-oslo.utils (>= 1.4.0),
+                     python-oslosphinx (>= 2.5.0),
+                     python-oslotest (>= 1.5.1),
+                     python-paramiko,
+                     python-pecan (>= 0.8.0),
+                     python-posix-ipc,
+                     python-requests,
+                     python-six (>= 1.9.0),
+                     python-sphinxcontrib-httpdomain,
+                     python-sphinxcontrib-pecanwsme,
+                     python-sqlalchemy,
+                     python-stevedore (>= 1.3.0),
+                     python-testtools,
+                     python-unittest2,
+                     python-wsme,
+                     python-yaml,
+                     python-yaql (>= 0.2.6),
+                     subunit,
+                     testrepository,
+Standards-Version: 3.9.6
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=openstack/mistral.git;a=summary
+Vcs-Git: git://anonscm.debian.org/openstack/mistral.git
+Homepage: https://github.com/stackforge/mistral
+
+Package: python-mistral
+Section: python
+Architecture: all
+Depends: alembic (>= 0.7.2),
+         python-amqplib,
+         python-babel,
+         python-cinderclient (>= 1:1.1.0),
+         python-croniter,
+         python-eventlet (>= 0.16.1),
+         python-glanceclient (>= 1:0.15.0),
+         python-heatclient (>= 0.3.0),
+         python-iso8601,
+         python-jsonschema,
+         python-keystoneclient (>= 1:1.1.0),
+         python-keystonemiddleware (>= 1.5.0),
+         python-kombu,
+         python-mock,
+         python-networkx,
+         python-neutronclient (>= 2.3.11),
+         python-novaclient (>= 2:2.22.0),
+         python-oslo.config (>= 1:1.9.3),
+         python-oslo.db (>= 1.7.0),
+         python-oslo.messaging (>= 1.8.0),
+         python-oslo.utils (>= 1.4.0),
+         python-paramiko,
+         python-pecan (>= 0.8.0),
+         python-posix-ipc,
+         python-requests,
+         python-six (>= 1.9.0),
+         python-sqlalchemy,
+         python-stevedore (>= 1.3.0),
+         python-wsme,
+         python-yaml,
+         python-yaql (>= 0.2.6),
+         ${misc:Depends},
+         ${python:Depends},
+Description: OpenStack Workflow Service - Python libraries
+ Mistral is a workflow service. Most business processes consist of multiple
+ distinct interconnected steps that need to be executed in a particular order
+ in a distributed environment. One can describe such process as a set of tasks
+ and task relations and upload such description to Mistral so that it takes
+ care of state management, correct execution order, parallelism,
+ synchronization and high availability. Mistral also provides flexible task
+ scheduling so that it can run a process according to a specified schedule
+ (i.e. every Sunday at 4.00pm) instead of running it immediately. Such set of
+ tasks and relations between them is called a workflow.
+ .
+ This package contains the Python libraries.
+
+Package: mistral-common
+Architecture: all
+Depends: adduser,
+         dbconfig-common,
+         debconf,
+         python-mistral (= ${binary:Version}),
+         sqlite3,
+         ${misc:Depends},
+         ${python:Depends},
+Provides: ${python:Provides},
+Description: OpenStack Workflow service - common files
+ Mistral is a workflow service. Most business processes consist of multiple
+ distinct interconnected steps that need to be executed in a particular order
+ in a distributed environment. One can describe such process as a set of tasks
+ and task relations and upload such description to Mistral so that it takes
+ care of state management, correct execution order, parallelism,
+ synchronization and high availability. Mistral also provides flexible task
+ scheduling so that it can run a process according to a specified schedule
+ (i.e. every Sunday at 4.00pm) instead of running it immediately. Such set of
+ tasks and relations between them is called a workflow.
+ .
+ This package contains common files and configuration.
+
+Package: mistral-server
+Architecture: all
+Depends: adduser,
+         debconf,
+         mistral-common (= ${binary:Version}),
+         ${misc:Depends},
+         ${ostack-lsb-base},
+         ${python:Depends},
+Description: OpenStack Workflow service - server
+ Mistral is a workflow service. Most business processes consist of multiple
+ distinct interconnected steps that need to be executed in a particular order
+ in a distributed environment. One can describe such process as a set of tasks
+ and task relations and upload such description to Mistral so that it takes
+ care of state management, correct execution order, parallelism,
+ synchronization and high availability. Mistral also provides flexible task
+ scheduling so that it can run a process according to a specified schedule
+ (i.e. every Sunday at 4.00pm) instead of running it immediately. Such set of
+ tasks and relations between them is called a workflow.
+ .
+ This package contains the API server on which clients will connect.
+
+Package: mistral-engine
+Architecture: all
+Depends: adduser,
+         mistral-common (= ${source:Version}),
+         ${misc:Depends},
+         ${ostack-lsb-base},
+         ${python:Depends},
+Description: OpenStack Workflow service - Engine
+ Mistral is a workflow service. Most business processes consist of multiple
+ distinct interconnected steps that need to be executed in a particular order
+ in a distributed environment. One can describe such process as a set of tasks
+ and task relations and upload such description to Mistral so that it takes
+ care of state management, correct execution order, parallelism,
+ synchronization and high availability. Mistral also provides flexible task
+ scheduling so that it can run a process according to a specified schedule
+ (i.e. every Sunday at 4.00pm) instead of running it immediately. Such set of
+ tasks and relations between them is called a workflow.
+ .
+ This package contains the Engine.
+
+Package: mistral-executor
+Architecture: all
+Depends: adduser,
+         mistral-common (= ${source:Version}),
+         ${misc:Depends},
+         ${ostack-lsb-base},
+         ${python:Depends},
+Description: OpenStack Workflow service - Executor
+ Mistral is a workflow service. Most business processes consist of multiple
+ distinct interconnected steps that need to be executed in a particular order
+ in a distributed environment. One can describe such process as a set of tasks
+ and task relations and upload such description to Mistral so that it takes
+ care of state management, correct execution order, parallelism,
+ synchronization and high availability. Mistral also provides flexible task
+ scheduling so that it can run a process according to a specified schedule
+ (i.e. every Sunday at 4.00pm) instead of running it immediately. Such set of
+ tasks and relations between them is called a workflow.
+ .
+ This package contains the Executor.
+
+Package: mistral-api
+Architecture: all
+Depends: adduser,
+         debconf,
+         mistral-common (= ${source:Version}),
+         ${misc:Depends},
+         ${ostack-lsb-base},
+         ${python:Depends},
+Description: OpenStack Workflow service - API
+ Mistral is a workflow service. Most business processes consist of multiple
+ distinct interconnected steps that need to be executed in a particular order
+ in a distributed environment. One can describe such process as a set of tasks
+ and task relations and upload such description to Mistral so that it takes
+ care of state management, correct execution order, parallelism,
+ synchronization and high availability. Mistral also provides flexible task
+ scheduling so that it can run a process according to a specified schedule
+ (i.e. every Sunday at 4.00pm) instead of running it immediately. Such set of
+ tasks and relations between them is called a workflow.
+ .
+ This package contains the API server.

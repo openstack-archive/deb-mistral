@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+. /usr/share/debconf/confmodule
+CONF=/etc/cinder/cinder.conf
+
+#PKGOS-INCLUDE#
+
+pkgos_var_user_group mistral
+pkgos_dbc_read_conf -pkg mistral-common ${CONF} database connection cinder $@
+pkgos_rabbit_read_conf ${CONF} DEFAULT mistral
+pkgos_read_admin_creds ${CONF} keystone_authtoken mistral
+
+db_go
+
+exit 0

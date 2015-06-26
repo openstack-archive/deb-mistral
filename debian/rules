@@ -1,0 +1,36 @@
+#!/usr/bin/make -f
+
+PYTHONS:=$(shell pyversions -vr)
+
+include /usr/share/openstack-pkg-tools/pkgos.make
+
+export OSLO_PACKAGE_VERSION=$(VERSION)
+
+%:
+	dh $@  --with python2,systemd
+
+override_dh_auto_test:
+ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+	PYTHONPATH=$(CURDIR) bash run_tests.sh -N -P || true
+endif
+
+override_dh_clean:
+	dh_clean
+	rm -f debian/*.init debian/*.service debian/*.upstart debian/mistral-common.postinst debian/mistral-common.config
+
+override_dh_auto_install:
+	set -e ; for pyvers in $(PYTHONS); do \
+		python$$pyvers setup.py install --install-layout=deb \
+			--root $(CURDIR)/debian/tmp; \
+	done
+	set -e ; for i in logging.conf mistral.conf wf_trace_logging.conf ; do \
+		install -D -m 0664 etc/$$i.sample $(CURDIR)/debian/mistral-common/usr/share/mistral-common/$$i ; \
+	done
+
+override_dh_install:
+	dh_install --fail-missing
+
+override_dh_auto_build:
+	dh_auto_build
+	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func mistral-common.postinst
+	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func mistral-common.config
