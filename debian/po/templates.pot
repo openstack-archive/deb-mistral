@@ -1,6 +1,6 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
+# This file is distributed under the same license as the mistral package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
 #, fuzzy
@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mistral\n"
 "Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
-"POT-Creation-Date: 2015-06-27 18:33+0200\n"
+"POT-Creation-Date: 2015-10-14 15:26+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -169,4 +169,91 @@ msgstr ""
 #. Description
 #: ../mistral-common.templates:9001
 msgid "Please specify the password used to connect to the RabbitMQ server."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+msgid "Register Mistral in the Keystone endpoint catalog?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+msgid ""
+"Each OpenStack service (each API) should be registered in order to be "
+"accessible. This is done using \"keystone service-create\" and \"keystone "
+"endpoint-create\". This can be done automatically now."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+msgid ""
+"Note that you will need to have an up and running Keystone server on which "
+"to connect using the Keystone authentication token."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:3001
+msgid "Keystone server IP address:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:3001
+msgid ""
+"Please enter the IP address of the Keystone server, so that mistral-api can "
+"contact Keystone to do the Mistral service and endpoint creation."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:4001
+msgid "Keystone authentication token:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:4001
+msgid ""
+"To configure its endpoint in Keystone, mistral-api needs the Keystone "
+"authentication token."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+msgid "Mistral endpoint IP address:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+msgid "Please enter the IP address that will be used to contact Mistral."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+msgid ""
+"This IP address should be accessible from the clients that will use this "
+"service, so if you are installing a public cloud, this should be a public IP "
+"address."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:6001
+msgid "Name of the region to register:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:6001
+msgid ""
+"OpenStack supports using availability zones, with each region representing a "
+"location. Please enter the zone that you wish to use when registering the "
+"endpoint."
 msgstr ""
