@@ -142,27 +142,6 @@ Description: OpenStack Workflow service - common files
  .
  This package contains common files and configuration.
 
-Package: mistral-server
-Architecture: all
-Depends: adduser,
-         debconf,
-         mistral-common (= ${binary:Version}),
-         ${misc:Depends},
-         ${ostack-lsb-base},
-         ${python:Depends},
-Description: OpenStack Workflow service - server
- Mistral is a workflow service. Most business processes consist of multiple
- distinct interconnected steps that need to be executed in a particular order
- in a distributed environment. One can describe such process as a set of tasks
- and task relations and upload such description to Mistral so that it takes
- care of state management, correct execution order, parallelism,
- synchronization and high availability. Mistral also provides flexible task
- scheduling so that it can run a process according to a specified schedule
- (i.e. every Sunday at 4.00pm) instead of running it immediately. Such set of
- tasks and relations between them is called a workflow.
- .
- This package contains the API server on which clients will connect.
-
 Package: mistral-engine
 Architecture: all
 Depends: adduser,
