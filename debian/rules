@@ -23,6 +23,10 @@ override_dh_auto_install:
 		python$$pyvers setup.py install --install-layout=deb \
 			--root $(CURDIR)/debian/tmp; \
 	done
+	# As usual, pbr is missing the alembic.ini
+	cp mistral/db/sqlalchemy/migration/alembic.ini $(CURDIR)/debian/mistral-common/usr/lib/python2.7/dist-packages/mistral/db/sqlalchemy/migration/
+
+	# Copy the configuration files
 	set -e ; for i in logging.conf wf_trace_logging.conf ; do \
 		install -D -m 0664 etc/$$i.sample $(CURDIR)/debian/mistral-common/usr/share/mistral-common/$$i ; \
 	done

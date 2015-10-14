@@ -22,11 +22,11 @@ if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
 	pkgos_rabbit_write_conf ${CONF} DEFAULT mistral
 	pkgos_write_admin_creds ${CONF} keystone_authtoken mistral
 
-#	db_get mistral/configure_db
-#	if [ "$RET" = "true" ]; then
-#		echo "Now calling mistral-db-manage sync: this may take a while..."
-#		su -s /bin/sh -c 'mistral-db-manage sync' mistral
-#	fi
+	db_get mistral/configure_db
+	if [ "$RET" = "true" ]; then
+		echo "Now calling mistral-db-manage upgrade head: this may take a while..."
+		su -s /bin/sh -c 'mistral-db-manage upgrade head' mistral
+	fi
 	db_stop
 fi
 
