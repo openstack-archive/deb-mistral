@@ -15,9 +15,12 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import json
 import logging
 import os
 from os import path
+import six
+import socket
 import threading
 import uuid
 
@@ -35,7 +38,7 @@ _th_loc_storage = threading.local()
 
 
 def generate_unicode_uuid():
-    return unicode(str(uuid.uuid4()))
+    return six.text_type(str(uuid.uuid4()))
 
 
 def _get_greenlet_local_storage():
@@ -125,7 +128,7 @@ def merge_dicts(left, right, overwrite=True):
     if right is None:
         return left
 
-    for k, v in right.iteritems():
+    for k, v in six.iteritems(right):
         if k not in left:
             left[k] = v
         else:
@@ -203,6 +206,32 @@ class NotDefined(object):
     pass
 
 
+def get_dict_from_string(input_string, delimiter=','):
+    if not input_string:
+        return {}
+
+    raw_inputs = input_string.split(delimiter)
+
+    inputs = []
+
+    for raw in raw_inputs:
+        input = raw.strip()
+        name_value = input.split('=')
+
+        if len(name_value) > 1:
+
+            try:
+                value = json.loads(name_value[1])
+            except ValueError:
+                value = name_value[1]
+
+            inputs += [{name_value[0]: value}]
+        else:
+            inputs += [name_value[0]]
+
+    return get_input_dict(inputs)
+
+
 def get_input_dict(inputs):
     """Transform input list to dictionary.
 
@@ -220,3 +249,9 @@ def get_input_dict(inputs):
             input_dict[x] = NotDefined
 
     return input_dict
+
+
+def get_process_identifier():
+    """Gets current running process identifier."""
+
+    return "%s_%s" % (socket.gethostname(), os.getpid())

@@ -36,10 +36,30 @@ VARIABLES = {
     'verbose': True,
     '__actions': {
         'std.sql': {
-            'conn': 'mysql://admin:secrete@{$.__env.host}/{$.__env.db}'
+            'conn': 'mysql://admin:secrete@<% env().host %>/<% env().db %>'
         }
     }
 }
+
+ENVIRONMENT_FOR_CREATE = {
+    'name': 'test',
+    'description': 'my test settings',
+    'variables': VARIABLES,
+}
+
+ENVIRONMENT_FOR_UPDATE = {
+    'name': 'test',
+    'description': 'my test settings',
+    'variables': VARIABLES,
+    'scope': 'private'
+}
+
+ENVIRONMENT_FOR_UPDATE_NO_SCOPE = {
+    'name': 'test',
+    'description': 'my test settings',
+    'variables': VARIABLES
+}
+
 
 ENVIRONMENT = {
     'id': str(uuid.uuid4()),
@@ -49,6 +69,15 @@ ENVIRONMENT = {
     'scope': 'private',
     'created_at': str(datetime.datetime.utcnow()),
     'updated_at': str(datetime.datetime.utcnow())
+}
+
+ENVIRONMENT_WITH_ILLEGAL_FIELD = {
+    'id': str(uuid.uuid4()),
+    'name': 'test',
+    'description': 'my test settings',
+    'extra_field': 'I can add whatever I want here',
+    'variables': VARIABLES,
+    'scope': 'private',
 }
 
 ENVIRONMENT_DB = db.Environment(
@@ -67,6 +96,8 @@ ENVIRONMENT_DB_DICT = {k: v for k, v in six.iteritems(ENVIRONMENT_DB)}
 
 UPDATED_VARIABLES = copy.deepcopy(VARIABLES)
 UPDATED_VARIABLES['host'] = '127.0.0.1'
+FOR_UPDATED_ENVIRONMENT = copy.deepcopy(ENVIRONMENT_FOR_UPDATE)
+FOR_UPDATED_ENVIRONMENT['variables'] = json.dumps(UPDATED_VARIABLES)
 UPDATED_ENVIRONMENT = copy.deepcopy(ENVIRONMENT)
 UPDATED_ENVIRONMENT['variables'] = json.dumps(UPDATED_VARIABLES)
 UPDATED_ENVIRONMENT_DB = db.Environment(**ENVIRONMENT_DB_DICT)
@@ -77,14 +108,14 @@ MOCK_ENVIRONMENTS = mock.MagicMock(return_value=[ENVIRONMENT_DB])
 MOCK_UPDATED_ENVIRONMENT = mock.MagicMock(return_value=UPDATED_ENVIRONMENT_DB)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
 MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
-MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntry())
+MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntryException())
 MOCK_DELETE = mock.MagicMock(return_value=None)
 
 
 def _convert_vars_to_dict(env_dict):
     """Converts 'variables' in the given environment dict into dictionary."""
     if ('variables' in env_dict and
-            isinstance(env_dict.get('variables'), basestring)):
+            isinstance(env_dict.get('variables'), six.string_types)):
         env_dict['variables'] = json.loads(env_dict['variables'])
 
     return env_dict
@@ -118,31 +149,6 @@ class TestEnvironmentController(base.FunctionalTest):
             resource.to_dict()
         )
 
-    def test_resource_to_db_model(self):
-        resource = api.Environment(
-            **_convert_vars_to_string(copy.deepcopy(ENVIRONMENT))
-        )
-
-        values = resource.to_dict()
-
-        values['variables'] = json.loads(values['variables'])
-        values['created_at'] = datetime.datetime.strptime(
-            values['created_at'], DATETIME_FORMAT)
-        values['updated_at'] = datetime.datetime.strptime(
-            values['updated_at'], DATETIME_FORMAT)
-
-        db_model = db.Environment(**values)
-
-        db_api.create_environment(db_model)
-
-        self.assertEqual(values['id'], db_model.id)
-        self.assertEqual(values['name'], db_model.name)
-        self.assertIsNone(db_model.project_id)
-        self.assertEqual(values['description'], db_model.description)
-        self.assertDictEqual(values['variables'], db_model.variables)
-        self.assertEqual(values['created_at'], db_model.created_at)
-        self.assertEqual(values['updated_at'], db_model.updated_at)
-
     @mock.patch.object(db_api, 'get_environments', MOCK_ENVIRONMENTS)
     def test_get_all(self):
         resp = self.app.get('/v2/environments')
@@ -173,18 +179,28 @@ class TestEnvironmentController(base.FunctionalTest):
     def test_post(self):
         resp = self.app.post_json(
             '/v2/environments',
-            _convert_vars_to_string(copy.deepcopy(ENVIRONMENT))
+            _convert_vars_to_string(copy.deepcopy(ENVIRONMENT_FOR_CREATE))
         )
 
         self.assertEqual(201, resp.status_int)
 
         self._assert_dict_equal(copy.deepcopy(ENVIRONMENT), resp.json)
 
+    @mock.patch.object(db_api, 'create_environment', MOCK_ENVIRONMENT)
+    def test_post_with_illegal_field(self):
+        resp = self.app.post_json(
+            '/v2/environments',
+            _convert_vars_to_string(
+                copy.deepcopy(ENVIRONMENT_WITH_ILLEGAL_FIELD)),
+            expect_errors=True
+        )
+        self.assertEqual(400, resp.status_int)
+
     @mock.patch.object(db_api, 'create_environment', MOCK_DUPLICATE)
     def test_post_dup(self):
         resp = self.app.post_json(
             '/v2/environments',
-            _convert_vars_to_string(copy.deepcopy(ENVIRONMENT)),
+            _convert_vars_to_string(copy.deepcopy(ENVIRONMENT_FOR_CREATE)),
             expect_errors=True
         )
 
@@ -192,9 +208,7 @@ class TestEnvironmentController(base.FunctionalTest):
 
     @mock.patch.object(db_api, 'create_environment', MOCK_ENVIRONMENT)
     def test_post_default_scope(self):
-        env = _convert_vars_to_string(copy.deepcopy(ENVIRONMENT))
-
-        del env['scope']
+        env = _convert_vars_to_string(copy.deepcopy(ENVIRONMENT_FOR_CREATE))
 
         resp = self.app.post_json('/v2/environments', env)
 
@@ -206,17 +220,17 @@ class TestEnvironmentController(base.FunctionalTest):
     def test_put(self):
         resp = self.app.put_json(
             '/v2/environments',
-            copy.deepcopy(UPDATED_ENVIRONMENT)
+            copy.deepcopy(FOR_UPDATED_ENVIRONMENT)
         )
 
         self.assertEqual(200, resp.status_int)
 
-        self._assert_dict_equal(copy.deepcopy(UPDATED_ENVIRONMENT), resp.json)
+        self._assert_dict_equal(UPDATED_ENVIRONMENT, resp.json)
 
     @mock.patch.object(db_api, 'update_environment', MOCK_UPDATED_ENVIRONMENT)
     def test_put_default_scope(self):
-        env = copy.deepcopy(UPDATED_ENVIRONMENT)
-        env['scope'] = None
+        env = copy.deepcopy(ENVIRONMENT_FOR_UPDATE_NO_SCOPE)
+        env['variables'] = json.dumps(env)
 
         resp = self.app.put_json('/v2/environments', env)
 
@@ -226,9 +240,11 @@ class TestEnvironmentController(base.FunctionalTest):
 
     @mock.patch.object(db_api, 'update_environment', MOCK_NOT_FOUND)
     def test_put_not_found(self):
+        env = copy.deepcopy(FOR_UPDATED_ENVIRONMENT)
+
         resp = self.app.put_json(
-            '/v2/environments/test',
-            copy.deepcopy(UPDATED_ENVIRONMENT),
+            '/v2/environments',
+            env,
             expect_errors=True
         )
 

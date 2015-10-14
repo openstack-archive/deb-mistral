@@ -14,10 +14,10 @@
 
 import copy
 
+from oslo_log import log as logging
 import yaml
 
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral.tests import base
 from mistral import utils
 from mistral.workbook import parser as spec_parser
@@ -91,15 +91,16 @@ class WorkflowSpecValidationTestCase(base.BaseTest):
             if changes:
                 utils.merge_dicts(dsl_dict, changes)
 
-            dsl_yaml = yaml.safe_dump(dsl_dict,
-                                      default_flow_style=False)
+            dsl_yaml = yaml.safe_dump(dsl_dict, default_flow_style=False)
 
         if not expect_error:
             return self._spec_parser(dsl_yaml)
         else:
-            return self.assertRaises(exc.DSLParsingException,
-                                     self._spec_parser,
-                                     dsl_yaml)
+            return self.assertRaises(
+                exc.DSLParsingException,
+                self._spec_parser,
+                dsl_yaml
+            )
 
 
 class WorkbookSpecValidationTestCase(WorkflowSpecValidationTestCase):

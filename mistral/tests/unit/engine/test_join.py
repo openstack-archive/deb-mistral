@@ -12,11 +12,11 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 import testtools
 
 from mistral.db.v2 import api as db_api
-from mistral.openstack.common import log as logging
 from mistral.services import workflows as wf_service
 from mistral.tests.unit.engine import base
 from mistral.workflow import states
@@ -178,24 +178,28 @@ class JoinEngineTest(base.EngineTestCase):
         # Start workflow.
         wf_ex = self.engine.start_workflow('wf', {})
 
-        self._await(lambda: self.is_execution_success(wf_ex.id))
+        self._await(
+            lambda:
+            len(db_api.get_workflow_execution(wf_ex.id).task_executions) == 4
+        )
 
         # Note: We need to reread execution to access related tasks.
         wf_ex = db_api.get_workflow_execution(wf_ex.id)
-
         tasks = wf_ex.task_executions
-
-        self.assertEqual(3, len(tasks))
 
         task1 = self._assert_single_item(tasks, name='task1')
         task2 = self._assert_single_item(tasks, name='task2')
+        task3 = self._assert_single_item(tasks, name='task3')
         task4 = self._assert_single_item(tasks, name='task4')
 
+        # NOTE(xylan): We ensure task4 is successful here because of the
+        # uncertainty of its running parallelly with task3.
+        self._await(lambda: self.is_task_success(task4.id))
+
+        self.assertEqual(states.RUNNING, wf_ex.state)
         self.assertEqual(states.SUCCESS, task1.state)
         self.assertEqual(states.SUCCESS, task2.state)
-        self.assertEqual(states.SUCCESS, task4.state)
-
-        self.assertDictEqual({'result': 4}, wf_ex.output)
+        self.assertEqual(states.WAITING, task3.state)
 
     def test_partial_join(self):
         wf_partial_join = """---
@@ -315,8 +319,8 @@ class JoinEngineTest(base.EngineTestCase):
               action: std.echo
               input:
                 output: |
-                  <% result1 in $ %>,<% result2 in $ %>,
-                  <% result3 in $ %>,<% result4 in $ %>
+                  <% result1 in $.keys() %>,<% result2 in $.keys() %>,
+                  <% result3 in $.keys() %>,<% result4 in $.keys() %>
               publish:
                 result5: <% $.task5 %>
         """
@@ -386,8 +390,8 @@ class JoinEngineTest(base.EngineTestCase):
               action: std.echo
               input:
                 output: |
-                  <% result1 in $ %>,<% result2 in $ %>,
-                  <% result3 in $ %>
+                  <% result1 in $.keys() %>,<% result2 in $.keys() %>,
+                  <% result3 in $.keys() %>
               publish:
                 result4: <% $.task4 %>
         """

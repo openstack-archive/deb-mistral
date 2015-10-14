@@ -15,13 +15,13 @@
 
 import inspect
 
+from oslo_log import log as logging
 from stevedore import extension
 
 from mistral.actions import action_factory
 from mistral.actions import generator_factory
 from mistral.db.v2 import api as db_api
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral.services import actions
 from mistral import utils
 from mistral.utils import inspect_utils as i_utils
@@ -31,7 +31,7 @@ from mistral.utils import inspect_utils as i_utils
 
 LOG = logging.getLogger(__name__)
 
-ACTIONS_PATH = '../resources/actions'
+ACTIONS_PATH = 'resources/actions'
 _ACTION_CTX_PARAM = 'action_context'
 
 
@@ -65,7 +65,7 @@ def register_action_class(name, action_class_str, attributes,
         LOG.debug("Registering action in DB: %s" % name)
 
         db_api.create_action_definition(values)
-    except exc.DBDuplicateEntry:
+    except exc.DBDuplicateEntryException:
         LOG.debug("Action %s already exists in DB." % name)
 
 
@@ -156,6 +156,12 @@ def get_action_context(task_ex, action_ex_id):
             'task_tags': task_ex.tags,
             'action_execution_id': action_ex_id
         }
+    }
+
+
+def get_empty_action_context():
+    return {
+        _ACTION_CTX_PARAM: {}
     }
 
 

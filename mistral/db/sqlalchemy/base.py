@@ -14,13 +14,15 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from oslo.config import cfg
-from oslo.db import options
-from oslo.db.sqlalchemy import session as db_session
+import six
+
+from oslo_config import cfg
+from oslo_db import options
+from oslo_db.sqlalchemy import session as db_session
+from oslo_log import log as logging
 
 from mistral.db.sqlalchemy import sqlite_lock
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral import utils
 
 
@@ -42,7 +44,7 @@ def _get_facade():
             cfg.CONF.database.connection,
             sqlite_fk=True,
             autocommit=False,
-            **dict(cfg.CONF.database.iteritems())
+            **dict(six.iteritems(cfg.CONF.database))
         )
 
     return _facade
@@ -140,10 +142,7 @@ def commit_tx():
             " has not been previously started."
         )
 
-    try:
-        ses.commit()
-    finally:
-        release_locks_if_sqlite(ses)
+    ses.commit()
 
 
 def rollback_tx():
@@ -155,10 +154,7 @@ def rollback_tx():
             "Nothing to roll back. Database transaction has not been started."
         )
 
-    try:
-        ses.rollback()
-    finally:
-        release_locks_if_sqlite(ses)
+    ses.rollback()
 
 
 def end_tx():
@@ -175,6 +171,8 @@ def end_tx():
     if ses.dirty:
         rollback_tx()
 
+    release_locks_if_sqlite(ses)
+
     ses.close()
     _set_thread_local_session(None)
 
@@ -185,9 +183,14 @@ def get_driver_name(session=None):
 
 
 @session_aware()
-def model_query(model, session=None):
+def model_query(model, columns=(), session=None):
     """Query helper.
 
-    :param model: base model to query
+    :param model: Base model to query.
+    :param columns: Optional. Which columns to be queried.
     """
+
+    if columns:
+        return session.query(*columns)
+
     return session.query(model)

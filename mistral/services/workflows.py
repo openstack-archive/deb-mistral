@@ -13,11 +13,12 @@
 #    limitations under the License.
 
 from mistral.db.v2 import api as db_api
+from mistral import exceptions as exc
 from mistral import utils
 from mistral.workbook import parser as spec_parser
 
 
-STD_WF_PATH = '../resources/workflows'
+STD_WF_PATH = 'resources/workflows'
 
 
 def register_standard_workflows():
@@ -25,21 +26,29 @@ def register_standard_workflows():
 
     for wf_path in workflow_paths:
         workflow_definition = open(wf_path).read()
-        update_workflows(workflow_definition, scope='public')
+
+        create_workflows(workflow_definition, scope='public', is_system=True)
+
+
+def _clear_system_workflow_db():
+    db_api.delete_workflow_definitions(is_system=True)
 
 
 def sync_db():
+    _clear_system_workflow_db()
     register_standard_workflows()
 
 
-def create_workflows(definition, scope='private'):
+def create_workflows(definition, scope='private', is_system=False):
     wf_list_spec = spec_parser.get_workflow_list_spec_from_yaml(definition)
 
     db_wfs = []
 
     with db_api.transaction():
         for wf_spec in wf_list_spec.get_workflows():
-            db_wfs.append(_create_workflow(wf_spec, definition, scope))
+            db_wfs.append(
+                _create_workflow(wf_spec, definition, scope, is_system)
+            )
 
     return db_wfs
 
@@ -51,7 +60,7 @@ def update_workflows(definition, scope='private'):
 
     with db_api.transaction():
         for wf_spec in wf_list_spec.get_workflows():
-            db_wfs.append(_create_or_update_workflow(
+            db_wfs.append(_update_workflow(
                 wf_spec,
                 definition,
                 scope
@@ -60,25 +69,33 @@ def update_workflows(definition, scope='private'):
     return db_wfs
 
 
-def _get_workflow_values(wf_spec, definition, scope):
+def _get_workflow_values(wf_spec, definition, scope, is_system=False):
     values = {
         'name': wf_spec.get_name(),
         'tags': wf_spec.get_tags(),
         'definition': definition,
         'spec': wf_spec.to_dict(),
-        'scope': scope
+        'scope': scope,
+        'is_system': is_system
     }
 
     return values
 
 
-def _create_workflow(wf_spec, definition, scope):
+def _create_workflow(wf_spec, definition, scope, is_system):
     return db_api.create_workflow_definition(
-        _get_workflow_values(wf_spec, definition, scope)
+        _get_workflow_values(wf_spec, definition, scope, is_system)
     )
 
 
-def _create_or_update_workflow(wf_spec, definition, scope):
+def _update_workflow(wf_spec, definition, scope):
+    workflow = db_api.load_workflow_definition(wf_spec.get_name())
+
+    if workflow and workflow.is_system:
+        raise exc.InvalidActionException(
+            "Attempt to modify a system workflow: %s" %
+            workflow.name
+        )
     values = _get_workflow_values(wf_spec, definition, scope)
 
-    return db_api.create_or_update_workflow_definition(values['name'], values)
+    return db_api.update_workflow_definition(values['name'], values)

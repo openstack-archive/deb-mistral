@@ -14,7 +14,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from oslo.config import cfg
+from oslo_config import cfg
 
 from mistral import context as auth_ctx
 from mistral.utils.openstack import keystone
@@ -61,8 +61,6 @@ def create_context(trust_id, project_id):
     :param project_id: Project Id.
     :return: Mistral security context.
     """
-    if not trust_id:
-        return
 
     if CONF.pecan.auth_enable:
         client = keystone.client_for_trusts(trust_id)

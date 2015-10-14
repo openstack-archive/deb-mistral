@@ -21,6 +21,7 @@ from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
 from mistral import exceptions as exc
 from mistral.tests.unit.api import base
+from mistral import utils
 
 WF_DEFINITION = """
 ---
@@ -37,6 +38,7 @@ flow:
 """
 
 WF_DB = models.WorkflowDefinition(
+    id='123e4567-e89b-12d3-a456-426655440000',
     name='flow',
     definition=WF_DEFINITION,
     created_at=datetime.datetime(1970, 1, 1),
@@ -44,7 +46,11 @@ WF_DB = models.WorkflowDefinition(
     spec={'input': ['param1']}
 )
 
+WF_DB_SYSTEM = WF_DB.get_clone()
+WF_DB_SYSTEM.is_system = True
+
 WF = {
+    'id': '123e4567-e89b-12d3-a456-426655440000',
     'name': 'flow',
     'definition': WF_DEFINITION,
     'created_at': '1970-01-01 00:00:00',
@@ -134,13 +140,14 @@ flow:
 """
 
 MOCK_WF = mock.MagicMock(return_value=WF_DB)
+MOCK_WF_SYSTEM = mock.MagicMock(return_value=WF_DB_SYSTEM)
 MOCK_WF_WITH_INPUT = mock.MagicMock(return_value=WF_DB_WITH_INPUT)
 MOCK_WFS = mock.MagicMock(return_value=[WF_DB])
 MOCK_UPDATED_WF = mock.MagicMock(return_value=UPDATED_WF_DB)
 MOCK_DELETE = mock.MagicMock(return_value=None)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
 MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
-MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntry())
+MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntryException())
 
 
 class TestWorkflowsController(base.FunctionalTest):
@@ -167,7 +174,7 @@ class TestWorkflowsController(base.FunctionalTest):
         self.assertEqual(resp.status_int, 404)
 
     @mock.patch.object(
-        db_api, "create_or_update_workflow_definition", MOCK_UPDATED_WF
+        db_api, "update_workflow_definition", MOCK_UPDATED_WF
     )
     def test_put(self):
         resp = self.app.put(
@@ -182,7 +189,36 @@ class TestWorkflowsController(base.FunctionalTest):
         self.assertDictEqual({'workflows': [UPDATED_WF]}, resp.json)
 
     @mock.patch.object(
-        db_api, "create_or_update_workflow_definition", MOCK_WF_WITH_INPUT
+        db_api, "load_workflow_definition", MOCK_WF_SYSTEM
+    )
+    def test_put_system(self):
+        resp = self.app.put(
+            '/v2/workflows',
+            UPDATED_WF_DEFINITION,
+            headers={'Content-Type': 'text/plain'},
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+        self.assertIn("Attempt to modify a system workflow", resp.text)
+
+    @mock.patch.object(db_api, "update_workflow_definition")
+    def test_put_public(self, mock_update):
+        mock_update.return_value = UPDATED_WF_DB
+
+        resp = self.app.put(
+            '/v2/workflows?scope=public',
+            UPDATED_WF_DEFINITION,
+            headers={'Content-Type': 'text/plain'}
+        )
+
+        self.assertEqual(resp.status_int, 200)
+        self.assertDictEqual({'workflows': [UPDATED_WF]}, resp.json)
+
+        self.assertEqual("public", mock_update.call_args[0][1]['scope'])
+
+    @mock.patch.object(
+        db_api, "update_workflow_definition", MOCK_WF_WITH_INPUT
     )
     def test_put_with_input(self):
         resp = self.app.put(
@@ -197,7 +233,7 @@ class TestWorkflowsController(base.FunctionalTest):
         self.assertDictEqual({'workflows': [WF_WITH_DEFAULT_INPUT]}, resp.json)
 
     @mock.patch.object(
-        db_api, "create_or_update_workflow_definition", MOCK_NOT_FOUND
+        db_api, "update_workflow_definition", MOCK_NOT_FOUND
     )
     def test_put_not_found(self):
         resp = self.app.put(
@@ -218,8 +254,7 @@ class TestWorkflowsController(base.FunctionalTest):
         )
 
         self.assertEqual(resp.status_int, 400)
-        self.assertIn("Task properties 'action' and 'workflow' "
-                      "can't be specified both", resp.body)
+        self.assertIn("Invalid DSL", resp.body)
 
     @mock.patch.object(db_api, "create_workflow_definition")
     def test_post(self, mock_mtd):
@@ -234,12 +269,41 @@ class TestWorkflowsController(base.FunctionalTest):
         self.assertEqual(resp.status_int, 201)
         self.assertDictEqual({'workflows': [WF]}, resp.json)
 
-        mock_mtd.assert_called_once()
+        self.assertEqual(1, mock_mtd.call_count)
 
         spec = mock_mtd.call_args[0][0]['spec']
 
         self.assertIsNotNone(spec)
         self.assertEqual(WF_DB.name, spec['name'])
+
+    @mock.patch.object(db_api, "create_workflow_definition")
+    def test_post_public(self, mock_mtd):
+        mock_mtd.return_value = WF_DB
+
+        resp = self.app.post(
+            '/v2/workflows?scope=public',
+            WF_DEFINITION,
+            headers={'Content-Type': 'text/plain'}
+        )
+
+        self.assertEqual(resp.status_int, 201)
+        self.assertEqual({"workflows": [WF]}, resp.json)
+
+        self.assertEqual("public", mock_mtd.call_args[0][0]['scope'])
+
+    @mock.patch.object(db_api, "create_action_definition")
+    def test_post_wrong_scope(self, mock_mtd):
+        mock_mtd.return_value = WF_DB
+
+        resp = self.app.post(
+            '/v2/workflows?scope=unique',
+            WF_DEFINITION,
+            headers={'Content-Type': 'text/plain'},
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+        self.assertIn("Scope must be one of the following", resp.text)
 
     @mock.patch.object(db_api, "create_workflow_definition", MOCK_DUPLICATE)
     def test_post_dup(self):
@@ -261,14 +325,21 @@ class TestWorkflowsController(base.FunctionalTest):
         )
 
         self.assertEqual(resp.status_int, 400)
-        self.assertIn("Task properties 'action' and 'workflow' "
-                      "can't be specified both", resp.body)
+        self.assertIn("Invalid DSL", resp.body)
 
     @mock.patch.object(db_api, "delete_workflow_definition", MOCK_DELETE)
+    @mock.patch.object(db_api, "get_workflow_definition", MOCK_WF)
     def test_delete(self):
         resp = self.app.delete('/v2/workflows/123')
 
         self.assertEqual(resp.status_int, 204)
+
+    @mock.patch.object(db_api, "get_workflow_definition", MOCK_WF_SYSTEM)
+    def test_delete_system(self):
+        resp = self.app.delete('/v2/workflows/123', expect_errors=True)
+
+        self.assertEqual(resp.status_int, 400)
+        self.assertIn("Attempt to delete a system workflow", resp.text)
 
     @mock.patch.object(db_api, "delete_workflow_definition", MOCK_NOT_FOUND)
     def test_delete_not_found(self):
@@ -293,6 +364,106 @@ class TestWorkflowsController(base.FunctionalTest):
 
         self.assertEqual(len(resp.json['workflows']), 0)
 
+    @mock.patch.object(db_api, "get_workflow_definitions", MOCK_WFS)
+    def test_get_all_pagination(self):
+        resp = self.app.get(
+            '/v2/workflows?limit=1&sort_keys=id,name')
+
+        self.assertEqual(resp.status_int, 200)
+
+        self.assertIn('next', resp.json)
+
+        self.assertEqual(len(resp.json['workflows']), 1)
+        self.assertDictEqual(WF, resp.json['workflows'][0])
+
+        param_dict = utils.get_dict_from_string(
+            resp.json['next'].split('?')[1],
+            delimiter='&'
+        )
+
+        expected_dict = {
+            'marker': '123e4567-e89b-12d3-a456-426655440000',
+            'limit': 1,
+            'sort_keys': 'id,name',
+            'sort_dirs': 'asc,asc',
+        }
+
+        self.assertDictEqual(expected_dict, param_dict)
+
+    def test_get_all_pagination_limit_negative(self):
+        resp = self.app.get(
+            '/v2/workflows?limit=-1&sort_keys=id,name&sort_dirs=asc,asc',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn("Limit must be positive", resp.body)
+
+    def test_get_all_pagination_limit_not_integer(self):
+        resp = self.app.get(
+            '/v2/workflows?limit=1.1&sort_keys=id,name&sort_dirs=asc,asc',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn("unable to convert to int", resp.body)
+
+    def test_get_all_pagination_invalid_sort_dirs_length(self):
+        resp = self.app.get(
+            '/v2/workflows?limit=1&sort_keys=id,name&sort_dirs=asc,asc,asc',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn(
+            "Length of sort_keys must be equal or greater than sort_dirs",
+            resp.body
+        )
+
+    def test_get_all_pagination_unknown_direction(self):
+        resp = self.app.get(
+            '/v2/workflows?limit=1&sort_keys=id&sort_dirs=nonexist',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn("Unknown sort direction", resp.body)
+
+    @mock.patch('mistral.db.v2.api.get_workflow_definitions')
+    def test_get_all_with_fields_filter(self, mock_get_db_wfs):
+        mock_get_db_wfs.return_value = [
+            ('123e4567-e89b-12d3-a456-426655440000', 'fake_name')
+        ]
+
+        resp = self.app.get('/v2/workflows?fields=name')
+
+        self.assertEqual(resp.status_int, 200)
+        self.assertEqual(len(resp.json['workflows']), 1)
+
+        expected_dict = {
+            'id': '123e4567-e89b-12d3-a456-426655440000',
+            'name': 'fake_name'
+        }
+
+        self.assertDictEqual(expected_dict, resp.json['workflows'][0])
+
+    def test_get_all_with_invalid_field(self):
+        resp = self.app.get(
+            '/v2/workflows?fields=name,nonexist',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn(
+            "nonexist are invalid",
+            resp.body
+        )
+
     def test_validate(self):
         resp = self.app.post(
             '/v2/workflows/validate',
@@ -313,8 +484,7 @@ class TestWorkflowsController(base.FunctionalTest):
 
         self.assertEqual(resp.status_int, 200)
         self.assertFalse(resp.json['valid'])
-        self.assertIn("Task properties 'action' and 'workflow' "
-                      "can't be specified both", resp.json['error'])
+        self.assertIn("Invalid DSL", resp.json['error'])
 
     def test_validate_dsl_parse_exception(self):
         resp = self.app.post(

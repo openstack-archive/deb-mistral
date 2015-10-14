@@ -73,25 +73,32 @@ class ReverseWorkflowController(base.WorkflowController):
     def _get_upstream_task_executions(self, task_spec):
         t_specs = [
             self.wf_spec.get_tasks()[t_name]
-            for t_name in self._get_task_requires(task_spec)
+            for t_name in self.wf_spec.get_task_requires(task_spec)
             or []
         ]
 
         return filter(
             lambda t_e: t_e.state == states.SUCCESS,
-            wf_utils.find_task_executions(self.wf_ex, t_specs)
+            wf_utils.find_task_executions_by_specs(self.wf_ex, t_specs)
         )
 
     def evaluate_workflow_final_context(self):
-        return data_flow.evaluate_task_outbound_context(
-            wf_utils.find_task_execution(
-                self.wf_ex,
-                self._get_target_task_specification()
-            )
+        task_execs = wf_utils.find_task_executions_by_spec(
+            self.wf_ex,
+            self._get_target_task_specification()
         )
 
+        # NOTE: For reverse workflow there can't be multiple
+        # executions for one task.
+        assert len(task_execs) <= 1
+
+        return data_flow.evaluate_task_outbound_context(task_execs[0])
+
+    def is_error_handled_for(self, task_ex):
+        return task_ex.state != states.ERROR
+
     def all_errors_handled(self):
-        return len(wf_utils.find_error_tasks(self.wf_ex)) == 0
+        return len(wf_utils.find_error_task_executions(self.wf_ex)) == 0
 
     def _find_task_specs_with_satisfied_dependencies(self):
         """Given a target task name finds tasks with no dependencies.
@@ -114,12 +121,10 @@ class ReverseWorkflowController(base.WorkflowController):
         ]
 
     def _is_satisfied_task(self, task_spec):
-        task_ex = wf_utils.find_task_execution(self.wf_ex, task_spec)
-
-        if task_ex:
+        if wf_utils.find_task_executions_by_spec(self.wf_ex, task_spec):
             return False
 
-        if not self._get_task_requires(task_spec):
+        if not self.wf_spec.get_task_requires(task_spec):
             return True
 
         success_t_names = set()
@@ -128,7 +133,9 @@ class ReverseWorkflowController(base.WorkflowController):
             if t_ex.state == states.SUCCESS:
                 success_t_names.add(t_ex.name)
 
-        return not (set(self._get_task_requires(task_spec)) - success_t_names)
+        return not (
+            set(self.wf_spec.get_task_requires(task_spec)) - success_t_names
+        )
 
     def _build_graph(self, tasks_spec):
         graph = nx.DiGraph()
@@ -145,7 +152,7 @@ class ReverseWorkflowController(base.WorkflowController):
         return graph
 
     def _get_dependency_tasks(self, tasks_spec, task_spec):
-        dep_task_names = self._get_task_requires(task_spec)
+        dep_task_names = self.wf_spec.get_task_requires(task_spec)
 
         if len(dep_task_names) == 0:
             return []

@@ -14,11 +14,12 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from oslo.config import cfg
+from oslo_config import cfg
 import pecan
 
 from mistral.api import access_control
 from mistral import context as ctx
+from mistral import coordination
 from mistral.db.v2 import api as db_api_v2
 from mistral.services import periodic
 
@@ -49,9 +50,11 @@ def setup_app(config=None):
 
     periodic.setup()
 
+    coordination.Service('api_group').register_membership()
+
     app = pecan.make_app(
         app_conf.pop('root'),
-        hooks=lambda: [ctx.ContextHook()],
+        hooks=lambda: [ctx.ContextHook(), ctx.AuthHook()],
         logging=getattr(config, 'logging', {}),
         **app_conf
     )

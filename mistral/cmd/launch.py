@@ -34,8 +34,9 @@ POSSIBLE_TOPDIR = os.path.normpath(os.path.join(os.path.abspath(sys.argv[0]),
 if os.path.exists(os.path.join(POSSIBLE_TOPDIR, 'mistral', '__init__.py')):
     sys.path.insert(0, POSSIBLE_TOPDIR)
 
-from oslo.config import cfg
-from oslo import messaging
+from oslo_config import cfg
+from oslo_log import log as logging
+import oslo_messaging as messaging
 from wsgiref import simple_server
 
 from mistral.api import app
@@ -45,10 +46,12 @@ from mistral.db.v2 import api as db_api
 from mistral.engine import default_engine as def_eng
 from mistral.engine import default_executor as def_executor
 from mistral.engine import rpc
-from mistral.openstack.common import log as logging
+from mistral.services import expiration_policy
 from mistral.services import scheduler
 from mistral import version
 
+
+CONF = cfg.CONF
 
 LOG = logging.getLogger(__name__)
 
@@ -71,6 +74,8 @@ def launch_executor(transport):
         serializer=ctx.RpcContextSerializer(ctx.JsonPayloadSerializer())
     )
 
+    executor_v2.register_membership()
+
     server.start()
     server.wait()
 
@@ -89,6 +94,9 @@ def launch_engine(transport):
     db_api.setup_db()
     scheduler.setup()
 
+    # Setup expiration policy
+    expiration_policy.setup()
+
     server = messaging.get_rpc_server(
         transport,
         target,
@@ -96,6 +104,8 @@ def launch_engine(transport):
         executor='eventlet',
         serializer=ctx.RpcContextSerializer(ctx.JsonPayloadSerializer())
     )
+
+    engine_v2.register_membership()
 
     server.start()
     server.wait()
@@ -157,13 +167,33 @@ def print_server_info():
     print('Launching server components %s...' % comp_str)
 
 
+def get_properly_ordered_parameters():
+    """In oslo it's important the order of the launch parameters.
+    if --config-file came after the command line parameters the command
+    line parameters are ignored.
+    So to make user command line parameters are never ignored this method
+    moves --config-file to be always first.
+    """
+    args = sys.argv[1:]
+
+    for arg in sys.argv[1:]:
+        if arg == '--config-file' or arg.startswith('--config-file='):
+            conf_file_value = args[args.index(arg) + 1]
+            args.remove(conf_file_value)
+            args.remove(arg)
+            args.insert(0, arg)
+            args.insert(1, conf_file_value)
+
+    return args
+
+
 def main():
     try:
-        config.parse_args()
+        config.parse_args(get_properly_ordered_parameters())
 
         print_server_info()
 
-        logging.setup('Mistral')
+        logging.setup(CONF, 'Mistral')
 
         # Please refer to the oslo.messaging documentation for transport
         # configuration. The default transport for oslo.messaging is

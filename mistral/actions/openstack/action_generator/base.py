@@ -14,11 +14,11 @@
 
 import json
 
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 import pkg_resources as pkg
 
 from mistral.actions import action_generator
-from mistral.openstack.common import log as logging
 from mistral.utils import inspect_utils as i_u
 from mistral import version
 

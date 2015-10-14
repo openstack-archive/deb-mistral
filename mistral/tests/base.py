@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-#
 # Copyright 2013 - Mirantis, Inc.
+# Copyright 2015 - StackStorm, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -14,20 +13,27 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import datetime
+import json
 import pkg_resources as pkg
 import sys
 import time
 
-from oslo.config import cfg
+import mock
+from oslo_config import cfg
+from oslo_log import log as logging
 from oslotest import base
+import six
 import testtools.matchers as ttm
 
 from mistral import context as auth_context
 from mistral.db.sqlalchemy import base as db_sa_base
 from mistral.db.sqlalchemy import sqlite_lock
 from mistral.db.v2 import api as db_api_v2
-from mistral.openstack.common import log as logging
 from mistral.services import action_manager
+from mistral.services import security
+from mistral.tests import config as test_config
+from mistral.utils import inspect_utils as i_utils
 from mistral import version
 
 
@@ -35,10 +41,60 @@ RESOURCES_PATH = 'tests/resources/'
 LOG = logging.getLogger(__name__)
 
 
+test_config.parse_args()
+
+
 def get_resource(resource_name):
     return open(pkg.resource_filename(
         version.version_info.package,
         RESOURCES_PATH + resource_name)).read()
+
+
+def get_context(default=True, admin=False):
+    if default:
+        return auth_context.MistralContext(
+            user_id='1-2-3-4',
+            project_id=security.DEFAULT_PROJECT_ID,
+            user_name='test-user',
+            project_name='test-project',
+            is_admin=admin
+        )
+    else:
+        return auth_context.MistralContext(
+            user_id='9-0-44-5',
+            project_id='99-88-33',
+            user_name='test-user',
+            project_name='test-another',
+            is_admin=admin
+        )
+
+
+def register_action_class(name, cls, attributes=None, desc=None):
+    action_manager.register_action_class(
+        name,
+        '%s.%s' % (cls.__module__, cls.__name__),
+        attributes or {},
+        input_str=i_utils.get_arg_list_as_str(cls.__init__)
+    )
+
+
+class FakeHTTPResponse(object):
+    def __init__(self, text, status_code, reason=None, headers=None,
+                 history=None, encoding='utf8', url='', cookies=None,
+                 elapsed=None):
+        self.text = text
+        self.content = text
+        self.status_code = status_code
+        self.reason = reason
+        self.headers = headers or {}
+        self.history = history
+        self.encoding = encoding
+        self.url = url
+        self.cookies = cookies or {}
+        self.elapsed = elapsed or datetime.timedelta(milliseconds=123)
+
+    def json(self):
+        return json.loads(self.text)
 
 
 class BaseTest(base.BaseTestCase):
@@ -61,7 +117,7 @@ class BaseTest(base.BaseTestCase):
 
     def _assert_multiple_items(self, items, count, **props):
         def _matches(item, **props):
-            for prop_name, prop_val in props.iteritems():
+            for prop_name, prop_val in six.iteritems(props):
                 v = item[prop_name] if isinstance(
                     item, dict) else getattr(item, prop_name)
 
@@ -70,7 +126,9 @@ class BaseTest(base.BaseTestCase):
 
             return True
 
-        filtered_items = filter(lambda item: _matches(item, **props), items)
+        filtered_items = list(
+            filter(lambda item: _matches(item, **props), items)
+        )
 
         found = len(filtered_items)
 
@@ -92,7 +150,7 @@ class BaseTest(base.BaseTestCase):
         missing = []
         mismatched = []
 
-        for key, value in expected.iteritems():
+        for key, value in six.iteritems(expected):
             if key not in actual:
                 missing.append(key)
             elif value != actual[key]:
@@ -160,7 +218,10 @@ class DbTestCase(BaseTest):
         """Runs a long initialization (runs once by class)
         and can be extended by child classes.
         """
-        cfg.CONF.set_default('connection', 'sqlite://', group='database')
+        # If using sqlite, change to memory. The default is file based.
+        if cfg.CONF.database.connection.startswith('sqlite'):
+            cfg.CONF.set_default('connection', 'sqlite://', group='database')
+
         cfg.CONF.set_default('max_overflow', -1, group='database')
         cfg.CONF.set_default('max_pool_size', 1000, group='database')
 
@@ -169,27 +230,34 @@ class DbTestCase(BaseTest):
         action_manager.sync_db()
 
     def _clean_db(self):
-        with db_api_v2.transaction():
-            db_api_v2.delete_workbooks()
-            db_api_v2.delete_executions()
-            db_api_v2.delete_cron_triggers()
-            db_api_v2.delete_workflow_definitions()
+        contexts = [
+            get_context(default=False),
+            get_context(default=True)
+        ]
+
+        for ctx in contexts:
+            auth_context.set_ctx(ctx)
+
+            with mock.patch('mistral.services.security.get_project_id',
+                            new=mock.MagicMock(return_value=ctx.project_id)):
+                with db_api_v2.transaction():
+                    db_api_v2.delete_executions()
+                    db_api_v2.delete_workbooks()
+                    db_api_v2.delete_cron_triggers()
+                    db_api_v2.delete_workflow_definitions()
+                    db_api_v2.delete_environments()
 
         sqlite_lock.cleanup()
+
+        if not cfg.CONF.database.connection.startswith('sqlite'):
+            db_sa_base.get_engine().dispose()
 
     def setUp(self):
         super(DbTestCase, self).setUp()
 
         self.__heavy_init()
 
-        self.ctx = auth_context.MistralContext(
-            user_id='1-2-3-4',
-            project_id='<default-project>',
-            user_name='test-user',
-            project_name='test-project',
-            is_admin=False
-        )
-
+        self.ctx = get_context()
         auth_context.set_ctx(self.ctx)
 
         self.addCleanup(auth_context.set_ctx, None)

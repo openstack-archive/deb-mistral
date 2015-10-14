@@ -13,11 +13,11 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
-from mistral.openstack.common import log as logging
 from mistral.services import workflows as wf_service
 from mistral.tests import base as test_base
 from mistral.tests.unit.engine import base as engine_test_base
@@ -56,7 +56,7 @@ class DataFlowEngineTest(engine_test_base.EngineTestCase):
 
             task3:
               publish:
-                result: "<% $.hi %>, <% $.to %>! Your <% $.__env.from %>."
+                result: "<% $.hi %>, <% $.to %>! Your <% env().from %>."
         """
 
         wf_service.create_workflows(linear_wf)
@@ -113,7 +113,7 @@ class DataFlowEngineTest(engine_test_base.EngineTestCase):
 
             task3:
               publish:
-                result: "<% $.hi %>, <% $.to %>! Your <% $.__env.from %>."
+                result: "<% $.hi %>, <% $.to %>! Your <% env().from %>."
                 progress: "completed task3"
               on-success:
                 - notify
@@ -338,7 +338,7 @@ class DataFlowEngineTest(engine_test_base.EngineTestCase):
 
             task4:
               publish:
-                result: "<% $.greeting %>, <% $.to %>! <% $.__env.from %>."
+                result: "<% $.greeting %>, <% $.to %>! <% env().from %>."
         """
 
         wf_service.create_workflows(var_overwrite_wf)
@@ -462,7 +462,15 @@ class DataFlowEngineTest(engine_test_base.EngineTestCase):
 
 class DataFlowTest(test_base.BaseTest):
     def test_get_task_execution_result(self):
-        task_ex = models.TaskExecution(name='task1')
+        task_ex = models.TaskExecution(
+            name='task1',
+            spec={
+                "version": '2.0',
+                'name': 'task1',
+                'with-items': 'var in [1]',
+                'type': 'direct'
+            }
+        )
 
         task_ex.executions.append(models.ActionExecution(
             name='my_action',
@@ -471,7 +479,7 @@ class DataFlowTest(test_base.BaseTest):
             runtime_context={'with_items_index': 0}
         ))
 
-        self.assertEqual(1, data_flow.get_task_execution_result(task_ex))
+        self.assertEqual([1], data_flow.get_task_execution_result(task_ex))
 
         task_ex.executions.append(models.ActionExecution(
             name='my_action',

@@ -1,4 +1,5 @@
 # Copyright 2014 - Mirantis, Inc.
+# Copyright 2015 - StackStorm, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -13,15 +14,15 @@
 #    limitations under the License.
 
 import eventlet
-from oslo.config import cfg
-from oslo import messaging
+from oslo_config import cfg
+from oslo_log import log as logging
+import oslo_messaging as messaging
 
 from mistral import context as ctx
 from mistral.db.v2 import api as db_api
 from mistral.engine import default_engine as def_eng
 from mistral.engine import default_executor as def_exec
 from mistral.engine import rpc
-from mistral.openstack.common import log as logging
 from mistral.services import scheduler
 from mistral.tests import base
 from mistral.workflow import states
@@ -39,7 +40,7 @@ def launch_engine_server(transport, engine):
         transport,
         target,
         [rpc.EngineServer(engine)],
-        executor='eventlet',
+        executor='blocking',
         serializer=ctx.RpcContextSerializer(ctx.JsonPayloadSerializer())
     )
 
@@ -57,7 +58,7 @@ def launch_executor_server(transport, executor):
         transport,
         target,
         [rpc.ExecutorServer(executor)],
-        executor='eventlet',
+        executor='blocking',
         serializer=ctx.RpcContextSerializer(ctx.JsonPayloadSerializer())
     )
 
@@ -108,7 +109,8 @@ class EngineTestCase(base.DbTestCase):
 
         [thread.kill() for thread in self.threads]
 
-    def print_workflow_executions(self, exc_info):
+    @staticmethod
+    def print_workflow_executions(exc_info):
         print("\nEngine test case exception occurred: %s" % exc_info[1])
         print("Exception type: %s" % exc_info[0])
         print("\nPrinting workflow executions...")
@@ -123,8 +125,8 @@ class EngineTestCase(base.DbTestCase):
 
             for t_ex in wf_ex.task_executions:
                 print(
-                    "\t%s [state=%s, published=%s]" %
-                    (t_ex.name, t_ex.state, t_ex.published)
+                    "\t%s [id=%s, state=%s, published=%s]" %
+                    (t_ex.name, t_ex.id, t_ex.state, t_ex.published)
                 )
 
     def is_task_in_state(self, task_ex_id, state):
@@ -149,4 +151,4 @@ class EngineTestCase(base.DbTestCase):
         return self.is_task_in_state(task_ex_id, states.ERROR)
 
     def is_task_delayed(self, task_ex_id):
-        return self.is_task_in_state(task_ex_id, states.DELAYED)
+        return self.is_task_in_state(task_ex_id, states.RUNNING_DELAYED)

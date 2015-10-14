@@ -13,14 +13,14 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from oslo.config import cfg
-from oslo import messaging
+from oslo_config import cfg
+from oslo_log import log as logging
+import oslo_messaging as messaging
 from oslo_messaging.rpc import client
 
 from mistral import context as auth_ctx
 from mistral.engine import base
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral.workflow import utils as wf_utils
 
 LOG = logging.getLogger(__name__)
@@ -77,7 +77,8 @@ class EngineServer(object):
     def __init__(self, engine):
         self._engine = engine
 
-    def start_workflow(self, rpc_ctx, workflow_name, workflow_input, params):
+    def start_workflow(self, rpc_ctx, workflow_name, workflow_input,
+                       description, params):
         """Receives calls over RPC to start workflows on engine.
 
         :param rpc_ctx: RPC request context.
@@ -86,13 +87,38 @@ class EngineServer(object):
 
         LOG.info(
             "Received RPC request 'start_workflow'[rpc_ctx=%s,"
-            " workflow_name=%s, workflow_input=%s, params=%s]"
-            % (rpc_ctx, workflow_name, workflow_input, params)
+            " workflow_name=%s, workflow_input=%s, description=%s, params=%s]"
+            % (rpc_ctx, workflow_name, workflow_input, description, params)
         )
 
         return self._engine.start_workflow(
             workflow_name,
             workflow_input,
+            description,
+            **params
+        )
+
+    def start_action(self, rpc_ctx, action_name,
+                     action_input, description, params):
+        """Receives calls over RPC to start actions on engine.
+
+        :param rpc_ctx: RPC request context.
+        :param action_name: name of the Action.
+        :param action_input: input dictionary for Action.
+        :param description: description of new Action execution.
+        :param params: extra parameters to run Action.
+        :return: Action execution.
+        """
+        LOG.info(
+            "Received RPC request 'start_action'[rpc_ctx=%s,"
+            " name=%s, input=%s, description=%s, params=%s]"
+            % (rpc_ctx, action_name, action_input, description, params)
+        )
+
+        return self._engine.start_action(
+            action_name,
+            action_input,
+            description,
             **params
         )
 
@@ -131,19 +157,37 @@ class EngineServer(object):
 
         return self._engine.pause_workflow(execution_id)
 
-    def resume_workflow(self, rpc_ctx, execution_id):
-        """Receives calls over RPC to resume workflows on engine.
+    def rerun_workflow(self, rpc_ctx, wf_ex_id, task_ex_id, reset=True):
+        """Receives calls over RPC to rerun workflows on engine.
 
         :param rpc_ctx: RPC request context.
+        :param wf_ex_id: Workflow execution id.
+        :param task_ex_id: Task execution id.
+        :param reset: If true, then purge action execution for the task.
         :return: Workflow execution.
         """
 
         LOG.info(
-            "Received RPC request 'resume_workflow'[rpc_ctx=%s,"
-            " execution_id=%s]" % (rpc_ctx, execution_id)
+            "Received RPC request 'rerun_workflow'[rpc_ctx=%s, "
+            "wf_ex_id=%s, task_ex_id=%s]" % (rpc_ctx, wf_ex_id, task_ex_id)
         )
 
-        return self._engine.resume_workflow(execution_id)
+        return self._engine.rerun_workflow(wf_ex_id, task_ex_id, reset)
+
+    def resume_workflow(self, rpc_ctx, wf_ex_id):
+        """Receives calls over RPC to resume workflows on engine.
+
+        :param rpc_ctx: RPC request context.
+        :param wf_ex_id: Workflow execution id.
+        :return: Workflow execution.
+        """
+
+        LOG.info(
+            "Received RPC request 'resume_workflow'[rpc_ctx=%s, "
+            "wf_ex_id=%s]" % (rpc_ctx, wf_ex_id)
+        )
+
+        return self._engine.resume_workflow(wf_ex_id)
 
     def stop_workflow(self, rpc_ctx, execution_id, state, message=None):
         """Receives calls over RPC to stop workflows on engine.
@@ -183,6 +227,12 @@ class EngineServer(object):
         return self._engine.resume_workflow(execution_id)
 
 
+def _wrap_exception_and_reraise(exception):
+    message = "%s: %s" % (exception.__class__.__name__, exception.message)
+
+    raise exc.MistralException(message)
+
+
 def wrap_messaging_exception(method):
     """This decorator unwrap remote error in one of MistralException.
 
@@ -198,9 +248,14 @@ def wrap_messaging_exception(method):
         try:
             return method(*args, **kwargs)
 
-        except client.RemoteError as e:
-            exc_cls = getattr(exc, e.exc_type)
-            raise exc_cls(e.value)
+        except exc.MistralException:
+            raise
+        except (client.RemoteError, Exception) as e:
+            if hasattr(e, 'exc_type') and hasattr(exc, e.exc_type):
+                exc_cls = getattr(exc, e.exc_type)
+                raise exc_cls(e.value)
+
+            _wrap_exception_and_reraise(e)
 
     return decorator
 
@@ -223,7 +278,7 @@ class EngineClient(base.Engine):
         )
 
     @wrap_messaging_exception
-    def start_workflow(self, wf_name, wf_input, **params):
+    def start_workflow(self, wf_name, wf_input, description='', **params):
         """Starts workflow sending a request to engine over RPC.
 
         :return: Workflow execution.
@@ -233,6 +288,23 @@ class EngineClient(base.Engine):
             'start_workflow',
             workflow_name=wf_name,
             workflow_input=wf_input or {},
+            description=description,
+            params=params
+        )
+
+    @wrap_messaging_exception
+    def start_action(self, action_name, action_input,
+                     description=None, **params):
+        """Starts action sending a request to engine over RPC.
+
+        :return: Action execution.
+        """
+        return self._client.call(
+            auth_ctx.ctx(),
+            'start_action',
+            action_name=action_name,
+            action_input=action_input or {},
+            description=description,
             params=params
         )
 
@@ -282,16 +354,36 @@ class EngineClient(base.Engine):
         )
 
     @wrap_messaging_exception
-    def resume_workflow(self, execution_id):
+    def rerun_workflow(self, wf_ex_id, task_ex_id, reset=True):
+        """Rerun the workflow with the given execution id
+        at the specific task execution id.
+
+        :param wf_ex_id: Workflow execution id.
+        :param task_ex_id: Task execution id.
+        :param reset: If true, then purge action execution for the task.
+        :return: Workflow execution.
+        """
+
+        return self._client.call(
+            auth_ctx.ctx(),
+            'rerun_workflow',
+            wf_ex_id=wf_ex_id,
+            task_ex_id=task_ex_id,
+            reset=reset
+        )
+
+    @wrap_messaging_exception
+    def resume_workflow(self, wf_ex_id):
         """Resumes the workflow with the given execution id.
 
+        :param wf_ex_id: Workflow execution id.
         :return: Workflow execution.
         """
 
         return self._client.call(
             auth_ctx.ctx(),
             'resume_workflow',
-            execution_id=execution_id
+            wf_ex_id=wf_ex_id
         )
 
     @wrap_messaging_exception
@@ -349,7 +441,7 @@ class ExecutorServer(object):
             % (rpc_ctx, action_ex_id, action_class_str, attributes, params)
         )
 
-        self._executor.run_action(
+        return self._executor.run_action(
             action_ex_id,
             action_class_str,
             attributes,
@@ -378,7 +470,7 @@ class ExecutorClient(base.Executor):
         )
 
     def run_action(self, action_ex_id, action_class_str, attributes,
-                   action_params, target=None):
+                   action_params, target=None, async=True):
         """Sends a request to run action to executor."""
 
         kwargs = {
@@ -388,7 +480,11 @@ class ExecutorClient(base.Executor):
             'params': action_params
         }
 
-        self._client.prepare(topic=self.topic, server=target).cast(
+        call_ctx = self._client.prepare(topic=self.topic, server=target)
+
+        rpc_client_method = call_ctx.cast if async else call_ctx.call
+
+        return rpc_client_method(
             auth_ctx.ctx(),
             'run_action',
             **kwargs

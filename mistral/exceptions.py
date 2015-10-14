@@ -59,9 +59,13 @@ class NotFoundException(MistralException):
     message = "Object not found"
 
 
-class DBDuplicateEntry(MistralException):
+class DBDuplicateEntryException(MistralException):
     http_code = 409
     message = "Database object already exists"
+
+
+class DBQueryEntryException(MistralException):
+    http_code = 400
 
 
 class ActionException(MistralException):
@@ -110,3 +114,21 @@ class InvalidModelException(DSLParsingException):
 class InvalidResultException(MistralException):
     http_code = 400
     message = "Unable to parse result"
+
+
+class SizeLimitExceededException(MistralException):
+    http_code = 400
+
+    def __init__(self, field_name, size_kb, size_limit_kb):
+        super(SizeLimitExceededException, self).__init__(
+            "Size of '%s' is %dKB which exceeds the limit of %dKB"
+            % (field_name, size_kb, size_limit_kb))
+
+
+class CoordinationException(MistralException):
+    http_code = 500
+
+
+class NotAllowedException(MistralException):
+    http_code = 403
+    message = "Operation not allowed"

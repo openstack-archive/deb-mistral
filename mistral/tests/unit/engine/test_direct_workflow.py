@@ -13,12 +13,12 @@
 #    limitations under the License.
 
 import mock
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 
 from mistral.db.v2 import api as db_api
 from mistral.engine import default_engine as de
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral.services import workflows as wf_service
 from mistral.tests.unit.engine import base
 from mistral.workflow import states
@@ -32,7 +32,6 @@ cfg.CONF.set_default('auth_enable', False, group='pecan')
 
 
 class DirectWorkflowEngineTest(base.EngineTestCase):
-
     def _run_workflow(self, workflow_yaml):
         wf_service.create_workflows(workflow_yaml)
 
@@ -92,6 +91,39 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         self.assertTrue(wf_ex.state, states.ERROR)
 
+    def test_direct_workflow_change_state_after_success(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          tasks:
+            task1:
+              action: std.echo output="Echo"
+              on-success:
+                - task2
+
+            task2:
+              action: std.noop
+        """
+
+        wf_service.create_workflows(wf_text)
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self._await(lambda: self.is_execution_success(wf_ex.id))
+
+        self.assertEqual(
+            states.SUCCESS,
+            self.engine.resume_workflow(wf_ex.id).state
+        )
+        self.assertRaises(
+            exc.WorkflowException,
+            self.engine.pause_workflow, wf_ex.id
+        )
+        self.assertEqual(
+            states.SUCCESS,
+            self.engine.stop_workflow(wf_ex.id, states.ERROR).state
+        )
+
     def test_wrong_task_input(self):
         wf_text = """
         version: '2.0'
@@ -112,22 +144,12 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         wf_ex = self._run_workflow(wf_text)
 
-        task_ex = self._assert_single_item(wf_ex.task_executions, name='task2')
-        action_ex = db_api.get_action_executions(
-            task_execution_id=task_ex.id
-        )[0]
-
         self.assertIn(
-            'Failed to initialize action',
-            action_ex.output['result']
-        )
-        self.assertIn(
-            'unexpected keyword argument',
-            action_ex.output['result']
+            'Invalid input',
+            wf_ex.state_info
         )
 
         self.assertTrue(wf_ex.state, states.ERROR)
-        self.assertIn(action_ex.output['result'], wf_ex.state_info)
 
     def test_wrong_first_task_input(self):
         wf_text = """
@@ -141,24 +163,11 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
               action: std.echo wrong_input="Ha-ha"
         """
 
-        wf_ex = self._run_workflow(wf_text)
-
-        task_ex = wf_ex.task_executions[0]
-        action_ex = db_api.get_action_executions(
-            task_execution_id=task_ex.id
-        )[0]
-
-        self.assertIn(
-            "Failed to initialize action",
-            action_ex.output['result']
+        self.assertRaises(
+            exc.InputException,
+            self._run_workflow,
+            wf_text
         )
-        self.assertIn(
-            "unexpected keyword argument",
-            action_ex.output['result']
-        )
-
-        self.assertTrue(wf_ex.state, states.ERROR)
-        self.assertIn(action_ex.output['result'], wf_ex.state_info)
 
     def test_wrong_action(self):
         wf_text = """
@@ -204,7 +213,8 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
                 exc.InvalidActionException,
                 self.engine.start_workflow, 'wf', None)
 
-            mock_fw.assert_called_once()
+            self.assertEqual(1, mock_fw.call_count)
+
             self.assertTrue(
                 issubclass(
                     type(mock_fw.call_args[0][1]),
@@ -253,7 +263,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
                 self.engine.start_workflow, 'wf', None
             )
 
-            mock_fw.assert_called_once()
+            self.assertEqual(1, mock_fw.call_count)
             self.assertTrue(
                 issubclass(
                     type(mock_fw.call_args[0][1]),
@@ -261,6 +271,27 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
                 ),
                 "Called with a right exception"
             )
+
+    def test_mismatched_yaql_in_first_task(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          input:
+            - var
+          tasks:
+            task1:
+              action: std.echo output=<% $.var + $.var2 %>
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        exception = self.assertRaises(
+            exc.YaqlEvaluationException,
+            self.engine.start_workflow, 'wf', {'var': 2}
+        )
+
+        self.assertIn("Can not evaluate YAQL expression", exception.message)
 
     def test_one_line_syntax_in_on_clauses(self):
         wf_text = """
@@ -291,3 +322,25 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
         wf_ex = self.engine.start_workflow('wf', {})
 
         self._await(lambda: self.is_execution_success(wf_ex.id))
+
+    def test_inconsistent_task_names(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          tasks:
+            task1:
+              action: std.noop
+              on-success: task3
+
+            task2:
+              action: std.noop
+        """
+
+        exception = self.assertRaises(
+            exc.InvalidModelException,
+            wf_service.create_workflows,
+            wf_text
+        )
+
+        self.assertIn("Task 'task3' not found", exception.message)

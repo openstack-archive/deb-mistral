@@ -98,7 +98,7 @@ MOCK_UPDATED_WORKBOOK = mock.MagicMock(return_value=UPDATED_WORKBOOK_DB)
 MOCK_DELETE = mock.MagicMock(return_value=None)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
 MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
-MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntry())
+MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntryException())
 
 
 class TestWorkbooksController(base.FunctionalTest):
@@ -146,8 +146,7 @@ class TestWorkbooksController(base.FunctionalTest):
         )
 
         self.assertEqual(resp.status_int, 400)
-        self.assertIn("Task properties 'action' and 'workflow' "
-                      "can't be specified both", resp.body)
+        self.assertIn("Invalid DSL", resp.body)
 
     @mock.patch.object(workbooks, "create_workbook_v2", MOCK_WORKBOOK)
     def test_post(self):
@@ -180,8 +179,7 @@ class TestWorkbooksController(base.FunctionalTest):
         )
 
         self.assertEqual(resp.status_int, 400)
-        self.assertIn("Task properties 'action' and 'workflow' "
-                      "can't be specified both", resp.body)
+        self.assertIn("Invalid DSL", resp.body)
 
     @mock.patch.object(db_api, "delete_workbook", MOCK_DELETE)
     def test_delete(self):
@@ -232,8 +230,7 @@ class TestWorkbooksController(base.FunctionalTest):
 
         self.assertEqual(resp.status_int, 200)
         self.assertFalse(resp.json['valid'])
-        self.assertIn("Task properties 'action' and 'workflow' "
-                      "can't be specified both", resp.json['error'])
+        self.assertIn("Invalid DSL", resp.json['error'])
 
     def test_validate_dsl_parse_exception(self):
         resp = self.app.post(

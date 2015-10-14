@@ -14,16 +14,20 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from oslo_config import cfg
+from oslo_log import log as logging
+from oslo_service import periodic_task
+from oslo_service import threadgroup
+
 from mistral import context as auth_ctx
 from mistral.db.v2 import api as db_api_v2
 from mistral.engine import rpc
-from mistral.openstack.common import log
-from mistral.openstack.common import periodic_task
-from mistral.openstack.common import threadgroup
 from mistral.services import security
 from mistral.services import triggers
 
-LOG = log.getLogger(__name__)
+LOG = logging.getLogger(__name__)
+
+CONF = cfg.CONF
 
 
 class MistralPeriodicTasks(periodic_task.PeriodicTasks):
@@ -31,8 +35,10 @@ class MistralPeriodicTasks(periodic_task.PeriodicTasks):
     def process_cron_triggers_v2(self, ctx):
         for t in triggers.get_next_cron_triggers():
             LOG.debug("Processing cron trigger: %s" % t)
+
             # Setup admin context before schedule triggers.
             ctx = security.create_context(t.trust_id, t.project_id)
+
             auth_ctx.set_ctx(ctx)
 
             LOG.debug("Cron trigger security context: %s" % ctx)
@@ -41,6 +47,7 @@ class MistralPeriodicTasks(periodic_task.PeriodicTasks):
                 rpc.get_engine_client().start_workflow(
                     t.workflow.name,
                     t.workflow_input,
+                    description="Workflow execution created by cron trigger.",
                     **t.workflow_params
                 )
             finally:
@@ -56,8 +63,10 @@ class MistralPeriodicTasks(periodic_task.PeriodicTasks):
 
                     db_api_v2.update_cron_trigger(
                         t.name,
-                        {'next_execution_time': next_time,
-                         'remaining_executions': t.remaining_executions}
+                        {
+                            'next_execution_time': next_time,
+                            'remaining_executions': t.remaining_executions
+                        }
                     )
 
                     auth_ctx.set_ctx(None)
@@ -65,7 +74,7 @@ class MistralPeriodicTasks(periodic_task.PeriodicTasks):
 
 def setup():
     tg = threadgroup.ThreadGroup()
-    pt = MistralPeriodicTasks()
+    pt = MistralPeriodicTasks(CONF)
 
     ctx = auth_ctx.MistralContext(
         user_id=None,

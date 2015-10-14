@@ -13,9 +13,11 @@
 #    under the License.
 
 import json
-import mock
 import os
 import time
+
+import mock
+import six
 
 from tempest import clients
 from tempest import config
@@ -37,7 +39,7 @@ def get_resource(path):
 
 def find_items(items, **props):
     def _matches(item, **props):
-        for prop_name, prop_val in props.iteritems():
+        for prop_name, prop_val in six.iteritems(props):
             if item[prop_name] != prop_val:
                 return False
 
@@ -52,15 +54,15 @@ def find_items(items, **props):
 
 
 class MistralClientBase(rest_client.RestClient):
-
     def __init__(self, auth_provider, service_type):
         super(MistralClientBase, self).__init__(
             auth_provider=auth_provider,
             service=service_type,
-            region=CONF.identity.region)
+            region=CONF.identity.region
+        )
 
         if service_type not in ('workflow', 'workflowv2'):
-            msg = ("Invalid parameter 'service_type'. ")
+            msg = "Invalid parameter 'service_type'. "
             raise exceptions.UnprocessableEntity(msg)
 
         self.endpoint_url = 'publicURL'
@@ -70,9 +72,11 @@ class MistralClientBase(rest_client.RestClient):
         self.workflows = []
         self.triggers = []
         self.actions = []
+        self.action_executions = []
 
     def get_list_obj(self, name):
         resp, body = self.get(name)
+
         return resp, json.loads(body)
 
     def delete_obj(self, obj, name):
@@ -80,9 +84,10 @@ class MistralClientBase(rest_client.RestClient):
 
     def get_object(self, obj, id):
         resp, body = self.get('{obj}/{id}'.format(obj=obj, id=id))
+
         return resp, json.loads(body)
 
-    def wait_execution_success(self, ex_body, timeout=180):
+    def wait_execution_success(self, ex_body, timeout=180, url='executions'):
         start_time = time.time()
 
         expected_states = ['SUCCESS', 'RUNNING']
@@ -93,29 +98,34 @@ class MistralClientBase(rest_client.RestClient):
                        "to SUCCESS. Execution: {1}".format(timeout, ex_body))
                 raise exceptions.TimeoutException(msg)
 
-            _, ex_body = self.get_object('executions', ex_body['id'])
+            _, ex_body = self.get_object(url, ex_body['id'])
 
             if ex_body['state'] not in expected_states:
                 msg = ("Execution state %s is not in expected "
                        "states: %s" % (ex_body['state'], expected_states))
                 raise exceptions.TempestException(msg)
 
-            time.sleep(2)
+            time.sleep(1)
 
-        return True
+        return ex_body
 
 
 class MistralClientV2(MistralClientBase):
 
     def post_request(self, url, file_name):
-        text = get_resource(file_name)
         headers = {"headers": "Content-Type:text/plain"}
-        return self.post(url, text, headers=headers)
+
+        return self.post(url, get_resource(file_name), headers=headers)
+
+    def post_json(self, url, obj):
+        headers = {"Content-Type": "application/json"}
+
+        return self.post(url, json.dumps(obj), headers=headers)
 
     def update_request(self, url, file_name):
-        text = get_resource(file_name)
         headers = {"headers": "Content-Type:text/plain"}
-        resp, body = self.put(url, text, headers=headers)
+
+        resp, body = self.put(url, get_resource(file_name), headers=headers)
 
         return resp, json.loads(body)
 
@@ -131,6 +141,7 @@ class MistralClientV2(MistralClientBase):
         self.workbooks.append(wb_name)
 
         _, wfs = self.get_list_obj('workflows')
+
         for wf in wfs['workflows']:
             if wf['name'].startswith(wb_name):
                 self.workflows.append(wf['name'])
@@ -147,6 +158,7 @@ class MistralClientV2(MistralClientBase):
 
     def create_execution(self, wf_name, wf_input=None, params=None):
         body = {"workflow_name": "%s" % wf_name}
+
         if wf_input:
             body.update({'input': json.dumps(wf_input)})
         if params:
@@ -172,6 +184,7 @@ class MistralClientV2(MistralClientBase):
             'remaining_executions': count,
             'first_execution_time': first_time
         }
+
         if wf_input:
             post_body.update({'workflow_input': json.dumps(wf_input)})
 
@@ -194,9 +207,17 @@ class MistralClientV2(MistralClientBase):
 
         return [t for t in all_tasks if t['workflow_name'] == wf_name]
 
+    def create_action_execution(self, request_body):
+        resp, body = self.post_json('action_executions', request_body)
+
+        params = json.loads(request_body.get('params', '{}'))
+        if params.get('save_result', False):
+            self.action_executions.append(json.loads(body)['id'])
+
+        return resp, json.loads(body)
+
 
 class AuthProv(auth.KeystoneV2AuthProvider):
-
     def __init__(self):
         self.alt_part = None
 
@@ -214,7 +235,6 @@ class AuthProv(auth.KeystoneV2AuthProvider):
 
 
 class TestCase(test.BaseTestCase):
-
     @classmethod
     def setUpClass(cls):
         """This method allows to initialize authentication before
@@ -240,6 +260,7 @@ class TestCase(test.BaseTestCase):
 
         for wb in self.client.workbooks:
             self.client.delete_obj('workbooks', wb)
+
         self.client.workbooks = []
 
 
@@ -262,10 +283,12 @@ class TestCaseAdvanced(TestCase):
     def tearDown(self):
         for wb in self.client.workbooks:
             self.client.delete_obj('workbooks', wb)
+
         self.client.workbooks = []
 
         for ex in self.client.executions:
             self.client.delete_obj('executions', ex)
+
         self.client.executions = []
 
         super(TestCaseAdvanced, self).tearDown()

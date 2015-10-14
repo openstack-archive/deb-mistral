@@ -14,16 +14,18 @@
 #    limitations under the License.
 
 import copy
+import six
 
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 
 from mistral import context as auth_ctx
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
 from mistral import expressions as expr
-from mistral.openstack.common import log as logging
 from mistral import utils
 from mistral.utils import inspect_utils
+from mistral.workbook import parser as spec_parser
 from mistral.workflow import states
 
 
@@ -79,6 +81,11 @@ def _extract_execution_result(ex):
         return ex.output['result']
 
 
+def invalidate_task_execution_result(task_ex):
+    for ex in task_ex.executions:
+        ex.accepted = False
+
+
 def get_task_execution_result(task_ex):
     action_execs = task_ex.executions
     action_execs.sort(
@@ -91,10 +98,12 @@ def get_task_execution_result(task_ex):
         if hasattr(ex, 'output') and ex.accepted
     ]
 
-    if results:
-        return results if len(results) > 1 else results[0]
-    else:
-        return []
+    task_spec = spec_parser.get_task_spec(task_ex.spec)
+
+    if task_spec.get_with_items():
+        return results
+
+    return results[0] if len(results) == 1 else results
 
 
 class TaskResultProxy(object):
@@ -127,7 +136,7 @@ class ProxyAwareDict(dict):
             return d
 
     def iteritems(self):
-        for k, _ in super(ProxyAwareDict, self).iteritems():
+        for k, _ in six.iteritems(super(ProxyAwareDict, self)):
             yield k, self[k]
 
     def to_builtin_dict(self):
@@ -135,6 +144,9 @@ class ProxyAwareDict(dict):
 
 
 def publish_variables(task_ex, task_spec):
+    if task_ex.state != states.SUCCESS:
+        return
+
     expr_ctx = extract_task_result_proxies_to_context(task_ex.in_context)
 
     if task_ex.name in expr_ctx:
@@ -168,9 +180,6 @@ def evaluate_task_outbound_context(task_ex, include_result=True):
         TaskResultProxy in outbound context under <task_name> key.
     :return: Outbound task Data Flow context.
     """
-
-    if task_ex.state != states.SUCCESS:
-        return task_ex.in_context
 
     in_context = (copy.deepcopy(dict(task_ex.in_context))
                   if task_ex.in_context is not None else {})
@@ -208,9 +217,8 @@ def evaluate_workflow_output(wf_spec, context):
     return ProxyAwareDict(output or context).to_builtin_dict()
 
 
-def add_openstack_data_to_context(context):
-    if context is None:
-        context = {}
+def add_openstack_data_to_context(wf_ex):
+    wf_ex.context = wf_ex.context or {}
 
     if CONF.pecan.auth_enable:
         exec_ctx = auth_ctx.ctx()
@@ -218,36 +226,37 @@ def add_openstack_data_to_context(context):
         LOG.debug('Data flow security context: %s' % exec_ctx)
 
         if exec_ctx:
-            context.update({'openstack': exec_ctx.to_dict()})
-
-    return context
+            wf_ex.context.update({'openstack': exec_ctx.to_dict()})
 
 
-def add_execution_to_context(wf_ex, context):
-    if context is None:
-        context = {}
+def add_execution_to_context(wf_ex):
+    wf_ex.context = wf_ex.context or {}
 
-    context['__execution'] = {
+    wf_ex.context['__execution'] = {
         'id': wf_ex.id,
         'spec': wf_ex.spec,
         'params': wf_ex.params,
         'input': wf_ex.input
     }
 
-    return context
 
-
-def add_environment_to_context(wf_ex, context):
-    if context is None:
-        context = {}
+def add_environment_to_context(wf_ex):
+    wf_ex.context = wf_ex.context or {}
 
     # If env variables are provided, add an evaluated copy into the context.
     if 'env' in wf_ex.params:
         env = copy.deepcopy(wf_ex.params['env'])
         # An env variable can be an expression of other env variables.
-        context['__env'] = expr.evaluate_recursively(env, {'__env': env})
+        wf_ex.context['__env'] = expr.evaluate_recursively(env, {'__env': env})
 
-    return context
+
+def add_workflow_variables_to_context(wf_ex, wf_spec):
+    wf_ex.context = wf_ex.context or {}
+
+    return utils.merge_dicts(
+        wf_ex.context,
+        expr.evaluate_recursively(wf_spec.get_vars(), wf_ex.context)
+    )
 
 
 # TODO(rakhmerov): Think how to get rid of this method. It should not be
@@ -255,7 +264,7 @@ def add_environment_to_context(wf_ex, context):
 def extract_task_result_proxies_to_context(ctx):
     ctx = ProxyAwareDict(copy.deepcopy(ctx))
 
-    for task_ex_id, task_ex_name in ctx['__tasks'].iteritems():
+    for task_ex_id, task_ex_name in six.iteritems(ctx['__tasks']):
         ctx[task_ex_name] = TaskResultProxy(task_ex_id)
 
     return ctx

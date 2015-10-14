@@ -29,11 +29,17 @@ from mistral.workbook.v2 import policies
 WITH_ITEMS_PTRN = re.compile(
     "\s*([\w\d_\-]+)\s*in\s*(\[.+\]|%s)" % expr.INLINE_YAQL_REGEXP
 )
+RESERVED_TASK_NAMES = [
+    'noop',
+    'fail',
+    'succeed',
+    'pause'
+]
 
 
 class TaskSpec(base.BaseSpec):
     # See http://json-schema.org
-    _type = None
+    _polymorphic_key = ('type', 'direct')
 
     _schema = {
         "type": "object",
@@ -58,7 +64,27 @@ class TaskSpec(base.BaseSpec):
             "target": types.NONEMPTY_STRING,
             "keep-result": types.YAQL_OR_BOOLEAN
         },
-        "additionalProperties": False
+        "additionalProperties": False,
+        "anyOf": [
+            {
+                "not": {
+                    "type": "object",
+                    "required": ["action", "workflow"]
+                },
+            },
+            {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "required": ["action"]
+                    },
+                    {
+                        "type": "object",
+                        "required": ["workflow"]
+                    }
+                ]
+            }
+        ]
     }
 
     def __init__(self, data):
@@ -83,21 +109,15 @@ class TaskSpec(base.BaseSpec):
         self._target = data.get('target')
         self._keep_result = data.get('keep-result', True)
 
-        self._inject_type()
         self._process_action_and_workflow()
 
-    def validate(self):
-        super(TaskSpec, self).validate()
+    def validate_schema(self):
+        super(TaskSpec, self).validate_schema()
+
+        self._transform_with_items()
 
         action = self._data.get('action')
         workflow = self._data.get('workflow')
-
-        if action and workflow:
-            msg = ("Task properties 'action' and 'workflow' can't be"
-                   " specified both: %s" % self._data)
-            raise exc.InvalidModelException(msg)
-
-        self._transform_with_items()
 
         # Validate YAQL expressions.
         if action or workflow:
@@ -145,10 +165,6 @@ class TaskSpec(base.BaseSpec):
             with_items[var_name] = array
 
         return with_items
-
-    def _inject_type(self):
-        if self._type:
-            self._data['type'] = self._type
 
     def _process_action_and_workflow(self):
         params = {}
@@ -198,7 +214,14 @@ class TaskSpec(base.BaseSpec):
 
 
 class DirectWorkflowTaskSpec(TaskSpec):
-    _type = 'direct'
+    _polymorphic_value = 'direct'
+
+    _on_clause_type = {
+        "oneOf": [
+            types.NONEMPTY_STRING,
+            types.UNIQUE_STRING_OR_YAQL_CONDITION_LIST
+        ]
+    }
 
     _on_clause_type = {
         "oneOf": [
@@ -210,7 +233,7 @@ class DirectWorkflowTaskSpec(TaskSpec):
     _direct_workflow_schema = {
         "type": "object",
         "properties": {
-            "type": {"enum": [_type]},
+            "type": {"enum": [_polymorphic_value]},
             "join": {
                 "oneOf": [
                     {"enum": ["all", "one"]},
@@ -234,16 +257,8 @@ class DirectWorkflowTaskSpec(TaskSpec):
         self._on_success = self._as_list_of_tuples('on-success')
         self._on_error = self._as_list_of_tuples('on-error')
 
-    def validate(self):
-        super(DirectWorkflowTaskSpec, self).validate()
-
-        if 'join' in self._data:
-            join = self._data.get('join')
-
-            if not (isinstance(join, int) or join in ['all', 'one']):
-                msg = ("Task property 'join' is only allowed to be an"
-                       " integer, 'all' or 'one': %s" % self._data)
-                raise exc.InvalidModelException(msg)
+    def validate_schema(self):
+        super(DirectWorkflowTaskSpec, self).validate_schema()
 
         # Validate YAQL expressions.
         self._validate_transitions('on-complete')
@@ -270,12 +285,12 @@ class DirectWorkflowTaskSpec(TaskSpec):
 
 
 class ReverseWorkflowTaskSpec(TaskSpec):
-    _type = 'reverse'
+    _polymorphic_value = 'reverse'
 
     _reverse_workflow_schema = {
         "type": "object",
         "properties": {
-            "type": {"enum": [_type]},
+            "type": {"enum": [_polymorphic_value]},
             "requires": {
                 "oneOf": [types.NONEMPTY_STRING, types.UNIQUE_STRING_LIST]
             }
@@ -299,28 +314,3 @@ class ReverseWorkflowTaskSpec(TaskSpec):
 
 class TaskSpecList(base.BaseSpecList):
     item_class = TaskSpec
-
-    @staticmethod
-    def get_class(wf_type):
-        """Gets a task specification list class by given workflow type.
-
-        :param wf_type: Workflow type
-        :returns: Task specification list class
-        """
-        for spec_list_cls in utils.iter_subclasses(TaskSpecList):
-            if wf_type == spec_list_cls.__type__:
-                return spec_list_cls
-
-        msg = ("Can not find task list specification with workflow type:"
-               " %s" % wf_type)
-        raise exc.NotFoundException(msg)
-
-
-class DirectWfTaskSpecList(TaskSpecList):
-    __type__ = 'direct'
-    item_class = DirectWorkflowTaskSpec
-
-
-class ReverseWfTaskSpecList(TaskSpecList):
-    __type__ = 'reverse'
-    item_class = ReverseWorkflowTaskSpec

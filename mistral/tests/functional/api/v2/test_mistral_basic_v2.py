@@ -12,11 +12,19 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import json
+
+from oslo_log import log as logging
+import six
 from tempest import test
 from tempest_lib import decorators
 from tempest_lib import exceptions
 
 from mistral.tests.functional import base
+from mistral import utils
+
+
+LOG = logging.getLogger(__name__)
 
 
 class WorkbookTestsV2(base.TestCase):
@@ -143,6 +151,93 @@ class WorkflowTestsV2(base.TestCase):
 
         self.assertIn('std.create_instance', names)
 
+        self.assertNotIn('next', body)
+
+    @test.attr(type='smoke')
+    def test_get_list_workflows_with_fields(self):
+        resp, body = self.client.get_list_obj('workflows?fields=name')
+
+        self.assertEqual(200, resp.status)
+
+        for wf in body['workflows']:
+            self.assertListEqual(['id', 'name'], wf.keys())
+
+    @test.attr(type='smoke')
+    def test_get_list_workflows_with_pagination(self):
+        resp, body = self.client.get_list_obj(
+            'workflows?limit=1&sort_keys=name&sort_dirs=desc'
+        )
+
+        self.assertEqual(200, resp.status)
+        self.assertEqual(1, len(body['workflows']))
+        self.assertIn('next', body)
+
+        name_1 = body['workflows'][0].get('name')
+        next = body.get('next')
+
+        param_dict = utils.get_dict_from_string(
+            next.split('?')[1],
+            delimiter='&'
+        )
+
+        expected_sub_dict = {
+            'limit': 1,
+            'sort_keys': 'name',
+            'sort_dirs': 'desc'
+        }
+
+        self.assertDictContainsSubset(expected_sub_dict, param_dict)
+
+        # Query again using 'next' hint
+        url_param = next.split('/')[-1]
+        resp, body = self.client.get_list_obj(url_param)
+
+        self.assertEqual(200, resp.status)
+        self.assertEqual(1, len(body['workflows']))
+
+        name_2 = body['workflows'][0].get('name')
+
+        self.assertGreater(name_1, name_2)
+
+    @test.attr(type='negative')
+    def test_get_list_workflows_nonexist_sort_dirs(self):
+        context = self.assertRaises(
+            exceptions.BadRequest,
+            self.client.get_list_obj,
+            'workflows?limit=1&sort_keys=id&sort_dirs=nonexist'
+        )
+
+        self.assertIn(
+            'Unknown sort direction',
+            context.resp_body.get('faultstring')
+        )
+
+    @test.attr(type='negative')
+    def test_get_list_workflows_invalid_limit(self):
+        context = self.assertRaises(
+            exceptions.BadRequest,
+            self.client.get_list_obj,
+            'workflows?limit=-1&sort_keys=id&sort_dirs=asc'
+        )
+
+        self.assertIn(
+            'Limit must be positive',
+            context.resp_body.get('faultstring')
+        )
+
+    @test.attr(type='negative')
+    def test_get_list_workflows_duplicate_sort_keys(self):
+        context = self.assertRaises(
+            exceptions.BadRequest,
+            self.client.get_list_obj,
+            'workflows?limit=1&sort_keys=id,id&sort_dirs=asc,asc'
+        )
+
+        self.assertIn(
+            'Length of sort_keys must be equal or greater than sort_dirs',
+            context.resp_body.get('faultstring')
+        )
+
     @test.attr(type='sanity')
     def test_create_and_delete_workflow(self):
         resp, body = self.client.create_workflow('wf_v2.yaml')
@@ -250,27 +345,88 @@ class ExecutionTestsV2(base.TestCase):
         super(ExecutionTestsV2, self).setUp()
 
         _, body = self.client.create_workflow('wf_v2.yaml')
-        self.direct_wf = body['workflows'][0]['name']
-        self.reverse_wf = body['workflows'][1]
+
+        self.direct_wf_name = 'wf'
+        self.direct_wf2_name = 'wf2'
+        reverse_wfs = [wf for wf in body['workflows'] if wf['name'] == 'wf1']
+        self.reverse_wf = reverse_wfs[0]
 
     def tearDown(self):
         for wf in self.client.workflows:
             self.client.delete_obj('workflows', wf)
         self.client.workflows = []
 
+        for ex in self.client.executions:
+            self.client.delete_obj('executions', ex)
+        self.client.executions = []
+
         super(ExecutionTestsV2, self).tearDown()
 
     @test.attr(type='smoke')
     def test_get_list_executions(self):
-        resp, _ = self.client.get_list_obj('executions')
+        resp, body = self.client.get_list_obj('executions')
         self.assertEqual(200, resp.status)
+        self.assertNotIn('next', body)
+
+    @test.attr(type='smoke')
+    def test_get_list_executions_with_pagination(self):
+        resp, body = self.client.create_execution(self.direct_wf_name)
+        exec_id_1 = body['id']
+
+        self.assertEqual(201, resp.status)
+
+        resp, body = self.client.create_execution(self.direct_wf2_name)
+        exec_id_2 = body['id']
+
+        self.assertEqual(201, resp.status)
+
+        resp, body = self.client.get_list_obj('executions')
+
+        self.assertIn(exec_id_1, [ex['id'] for ex in body['executions']])
+        self.assertIn(exec_id_2, [ex['id'] for ex in body['executions']])
+
+        resp, body = self.client.get_list_obj(
+            'executions?limit=1&sort_keys=workflow_name&sort_dirs=asc'
+        )
+
+        self.assertEqual(200, resp.status)
+        self.assertEqual(1, len(body['executions']))
+        self.assertIn('next', body)
+
+        workflow_name_1 = body['executions'][0].get('workflow_name')
+        next = body.get('next')
+        param_dict = utils.get_dict_from_string(
+            next.split('?')[1],
+            delimiter='&'
+        )
+
+        expected_dict = {
+            'limit': 1,
+            'sort_keys': 'workflow_name',
+            'sort_dirs': 'asc',
+        }
+
+        self.assertTrue(
+            set(expected_dict.items()).issubset(set(param_dict.items()))
+        )
+
+        # Query again using 'next' link
+        url_param = next.split('/')[-1]
+        resp, body = self.client.get_list_obj(url_param)
+
+        self.assertEqual(200, resp.status)
+        self.assertEqual(1, len(body['executions']))
+
+        workflow_name_2 = body['executions'][0].get('workflow_name')
+
+        self.assertGreater(workflow_name_2, workflow_name_1)
 
     @test.attr(type='sanity')
     def test_create_execution_for_direct_wf(self):
-        resp, body = self.client.create_execution(self.direct_wf)
+        resp, body = self.client.create_execution(self.direct_wf_name)
         exec_id = body['id']
         self.assertEqual(201, resp.status)
-        self.assertEqual(self.direct_wf, body['workflow_name'])
+        self.assertEqual(self.direct_wf_name, body['workflow_name'])
         self.assertEqual('RUNNING', body['state'])
 
         resp, body = self.client.get_list_obj('executions')
@@ -302,7 +458,7 @@ class ExecutionTestsV2(base.TestCase):
 
     @test.attr(type='sanity')
     def test_get_execution(self):
-        _, execution = self.client.create_execution(self.direct_wf)
+        _, execution = self.client.create_execution(self.direct_wf_name)
 
         resp, body = self.client.get_object('executions', execution['id'])
 
@@ -314,7 +470,7 @@ class ExecutionTestsV2(base.TestCase):
 
     @test.attr(type='sanity')
     def test_update_execution_pause(self):
-        _, execution = self.client.create_execution(self.direct_wf)
+        _, execution = self.client.create_execution(self.direct_wf_name)
         resp, body = self.client.update_execution(
             execution['id'], '{"state": "PAUSED"}')
 
@@ -322,8 +478,17 @@ class ExecutionTestsV2(base.TestCase):
         self.assertEqual('PAUSED', body['state'])
 
     @test.attr(type='sanity')
+    def test_update_execution_description(self):
+        _, execution = self.client.create_execution(self.direct_wf_name)
+        resp, body = self.client.update_execution(
+            execution['id'], '{"description": "description"}')
+
+        self.assertEqual(200, resp.status)
+        self.assertEqual('description', body['description'])
+
+    @test.attr(type='sanity')
     def test_update_execution_fail(self):
-        _, execution = self.client.create_execution(self.direct_wf)
+        _, execution = self.client.create_execution(self.direct_wf_name)
         resp, body = self.client.update_execution(
             execution['id'], '{"state": "ERROR", "state_info": "Forced"}')
 
@@ -489,7 +654,7 @@ class CronTriggerTestsV2(base.TestCase):
 
     @test.attr(type='negative')
     def test_create_cron_trigger_invalid_count(self):
-        self.assertRaises(exceptions.ServerFault,
+        self.assertRaises(exceptions.BadRequest,
                           self.client.create_cron_trigger,
                           'trigger', 'nonexist', None, '5 * * * *', None, "q")
 
@@ -583,6 +748,83 @@ class ActionTestsV2(base.TestCase):
 
         self.assertEqual(200, resp.status)
         self.assertNotEqual([], body['actions'])
+        self.assertNotIn('next', body)
+
+    @test.attr(type='smoke')
+    def test_get_list_actions_with_pagination(self):
+        resp, body = self.client.get_list_obj(
+            'actions?limit=1&sort_keys=name&sort_dirs=desc'
+        )
+
+        self.assertEqual(200, resp.status)
+        self.assertEqual(1, len(body['actions']))
+        self.assertIn('next', body)
+
+        name_1 = body['actions'][0].get('name')
+        next = body.get('next')
+
+        param_dict = utils.get_dict_from_string(
+            next.split('?')[1],
+            delimiter='&'
+        )
+
+        expected_sub_dict = {
+            'limit': 1,
+            'sort_keys': 'name',
+            'sort_dirs': 'desc'
+        }
+
+        self.assertDictContainsSubset(expected_sub_dict, param_dict)
+
+        # Query again using 'next' hint
+        url_param = next.split('/')[-1]
+        resp, body = self.client.get_list_obj(url_param)
+
+        self.assertEqual(200, resp.status)
+        self.assertEqual(1, len(body['actions']))
+
+        name_2 = body['actions'][0].get('name')
+
+        self.assertGreater(name_1, name_2)
+
+    @test.attr(type='negative')
+    def test_get_list_actions_nonexist_sort_dirs(self):
+        context = self.assertRaises(
+            exceptions.BadRequest,
+            self.client.get_list_obj,
+            'actions?limit=1&sort_keys=id&sort_dirs=nonexist'
+        )
+
+        self.assertIn(
+            'Unknown sort direction',
+            context.resp_body.get('faultstring')
+        )
+
+    @test.attr(type='negative')
+    def test_get_list_actions_invalid_limit(self):
+        context = self.assertRaises(
+            exceptions.BadRequest,
+            self.client.get_list_obj,
+            'actions?limit=-1&sort_keys=id&sort_dirs=asc'
+        )
+
+        self.assertIn(
+            'Limit must be positive',
+            context.resp_body.get('faultstring')
+        )
+
+    @test.attr(type='negative')
+    def test_get_list_actions_duplicate_sort_keys(self):
+        context = self.assertRaises(
+            exceptions.BadRequest,
+            self.client.get_list_obj,
+            'actions?limit=1&sort_keys=id,id&sort_dirs=asc,asc'
+        )
+
+        self.assertIn(
+            'Length of sort_keys must be equal or greater than sort_dirs',
+            context.resp_body.get('faultstring')
+        )
 
     @test.attr(type='sanity')
     def test_create_and_delete_few_actions(self):
@@ -651,40 +893,53 @@ class ActionTestsV2(base.TestCase):
 
     @test.attr(type='negative')
     def test_get_nonexistent_action(self):
-        self.assertRaises(exceptions.NotFound,
-                          self.client.get_object,
-                          'actions', 'nonexist')
+        self.assertRaises(
+            exceptions.NotFound,
+            self.client.get_object,
+            'actions', 'nonexist'
+        )
 
     @test.attr(type='negative')
     def test_double_creation(self):
         self.client.create_action('action_v2.yaml')
 
-        self.assertRaises(exceptions.Conflict,
-                          self.client.create_action,
-                          'action_v2.yaml')
+        self.assertRaises(
+            exceptions.Conflict,
+            self.client.create_action,
+            'action_v2.yaml'
+        )
 
     @test.attr(type='negative')
     def test_create_action_invalid_def(self):
-        self.assertRaises(exceptions.ServerFault,
-                          self.client.create_action, 'wb_v2.yaml')
+        self.assertRaises(
+            exceptions.BadRequest,
+            self.client.create_action,
+            'wb_v2.yaml'
+        )
 
     @test.attr(type='negative')
     def test_update_action_invalid_def(self):
-        self.assertRaises(exceptions.ServerFault,
-                          self.client.update_request,
-                          'actions', 'wb_v2.yaml')
+        self.assertRaises(
+            exceptions.BadRequest,
+            self.client.update_request,
+            'actions', 'wb_v2.yaml'
+        )
 
     @test.attr(type='negative')
     def test_delete_nonexistent_action(self):
-        self.assertRaises(exceptions.NotFound,
-                          self.client.delete_obj,
-                          'actions', 'nonexist')
+        self.assertRaises(
+            exceptions.NotFound,
+            self.client.delete_obj,
+            'actions', 'nonexist'
+        )
 
     @test.attr(type='negative')
     def test_delete_standard_action(self):
-        self.assertRaises(exceptions.BadRequest,
-                          self.client.delete_obj,
-                          'actions', 'nova.servers_create')
+        self.assertRaises(
+            exceptions.BadRequest,
+            self.client.delete_obj,
+            'actions', 'nova.servers_create'
+        )
 
 
 class TasksTestsV2(base.TestCase):
@@ -695,13 +950,17 @@ class TasksTestsV2(base.TestCase):
         super(TasksTestsV2, self).setUp()
 
         _, body = self.client.create_workflow('wf_v2.yaml')
-        self.direct_wf = body['workflows'][0]['name']
-        _, execution = self.client.create_execution(self.direct_wf)
+        self.direct_wf_name = body['workflows'][0]['name']
+        _, execution = self.client.create_execution(self.direct_wf_name)
 
     def tearDown(self):
         for wf in self.client.workflows:
             self.client.delete_obj('workflows', wf)
         self.client.workflows = []
+
+        for wf in self.client.executions:
+            self.client.delete_obj('executions', wf)
+        self.client.executions = []
 
         super(TasksTestsV2, self).tearDown()
 
@@ -717,4 +976,102 @@ class TasksTestsV2(base.TestCase):
         resp, body = self.client.get_list_obj('tasks')
 
         self.assertEqual(200, resp.status)
-        self.assertEqual(self.direct_wf, body['tasks'][-1]['workflow_name'])
+        self.assertEqual(
+            self.direct_wf_name, body['tasks'][-1]['workflow_name']
+        )
+
+
+class ActionExecutionTestsV2(base.TestCase):
+    _service = 'workflowv2'
+
+    @classmethod
+    def resource_cleanup(cls):
+        for action_ex in cls.client.action_executions:
+            try:
+                cls.client.delete_obj('action_executions', action_ex)
+            except Exception as e:
+                LOG.exception('Exception raised when deleting '
+                              'action_executions %s, error message: %s.'
+                              % (action_ex, six.text_type(e)))
+
+        cls.client.action_executions = []
+
+        super(ActionExecutionTestsV2, cls).resource_cleanup()
+
+    @test.attr(type='sanity')
+    def test_run_action_execution(self):
+        resp, body = self.client.create_action_execution(
+            {
+                'name': 'std.echo',
+                'input': '{"output": "Hello, Mistral!"}'
+            }
+        )
+
+        self.assertEqual(201, resp.status)
+        output = json.loads(body['output'])
+        self.assertDictEqual(
+            {'result': 'Hello, Mistral!'},
+            output
+        )
+
+    @test.attr(type='sanity')
+    def test_run_action_std_http(self):
+        resp, body = self.client.create_action_execution(
+            {
+                'name': 'std.http',
+                'input': '{"url": "http://wiki.openstack.org"}'
+            }
+        )
+
+        self.assertEqual(201, resp.status)
+        output = json.loads(body['output'])
+        self.assertTrue(output['result']['status'] in range(200, 307))
+
+    @test.attr(type='sanity')
+    def test_run_action_std_http_error(self):
+        resp, body = self.client.create_action_execution(
+            {
+                'name': 'std.http',
+                'input': '{"url": "http://www.google.ru/not-found-test"}'
+            }
+        )
+
+        self.assertEqual(201, resp.status)
+        output = json.loads(body['output'])
+        self.assertEqual(404, output['result']['status'])
+
+    @test.attr(type='sanity')
+    def test_create_action_execution(self):
+        resp, body = self.client.create_action_execution(
+            {
+                'name': 'std.echo',
+                'input': '{"output": "Hello, Mistral!"}',
+                'params': '{"save_result": true}'
+            }
+        )
+
+        self.assertEqual(201, resp.status)
+        self.assertEqual('RUNNING', body['state'])
+
+        # We must reread action execution in order to get actual
+        # state and output.
+        body = self.client.wait_execution_success(
+            body,
+            url='action_executions'
+        )
+        output = json.loads(body['output'])
+
+        self.assertEqual('SUCCESS', body['state'])
+        self.assertDictEqual(
+            {'result': 'Hello, Mistral!'},
+            output
+        )
+
+    @test.attr(type='negative')
+    def test_delete_nonexistent_action_execution(self):
+        self.assertRaises(
+            exceptions.NotFound,
+            self.client.delete_obj,
+            'action_executions',
+            'nonexist'
+        )

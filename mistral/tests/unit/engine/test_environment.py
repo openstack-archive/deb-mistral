@@ -13,12 +13,12 @@
 #    limitations under the License.
 
 import mock
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 
 from mistral.db.v2 import api as db_api
 from mistral.engine import default_executor
 from mistral.engine import rpc
-from mistral.openstack.common import log as logging
 from mistral.services import workbooks as wb_service
 from mistral.tests.unit.engine import base
 
@@ -51,14 +51,14 @@ workflows:
     tasks:
       task1:
         action: std.echo output=<% $.param1 %>
-        target: <% $.__env.var1 %>
+        target: <% env().var1 %>
         publish:
           result1: <% $.task1 %>
 
       task2:
         requires: [task1]
         action: std.echo output="'<% $.result1 %> & <% $.param2 %>'"
-        target: <% $.__env.var1 %>
+        target: <% env().var1 %>
         publish:
           final_result: <% $.task2 %>
 
@@ -70,16 +70,16 @@ workflows:
       task1:
         workflow: wf1
         input:
-          param1: <% $.__env.var2 %>
-          param2: <% $.__env.var3 %>
+          param1: <% env().var2 %>
+          param2: <% env().var3 %>
           task_name: task2
         publish:
-          slogan: "<% $.task1.final_result %> is a cool <% $.__env.var4 %>!"
+          slogan: "<% $.task1.final_result %> is a cool <% env().var4 %>!"
 """
 
 
 def _run_at_target(action_ex_id, action_class_str, attributes,
-                   action_params, target=None):
+                   action_params, target=None, async=True):
     # We'll just call executor directly for testing purposes.
     executor = default_executor.DefaultExecutor(rpc.get_engine_client())
 
@@ -104,7 +104,7 @@ class SubworkflowsTest(base.EngineTestCase):
     def _test_subworkflow(self, env):
         wf2_ex = self.engine.start_workflow(
             'my_wb.wf2',
-            None,
+            {},
             env=env
         )
 
@@ -173,7 +173,8 @@ class SubworkflowsTest(base.EngineTestCase):
                 'mistral.actions.std_actions.EchoAction',
                 {},
                 a_ex.input,
-                TARGET
+                TARGET,
+                True
             )
 
     def test_subworkflow_env_task_input(self):
@@ -190,7 +191,7 @@ class SubworkflowsTest(base.EngineTestCase):
         env = {
             'var1': TARGET,
             'var2': 'Bonnie',
-            'var3': '<% $.__env.var5 %>',
+            'var3': '<% env().var5 %>',
             'var4': 'movie',
             'var5': 'Clyde'
         }

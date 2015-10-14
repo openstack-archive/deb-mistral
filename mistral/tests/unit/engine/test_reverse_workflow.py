@@ -12,11 +12,13 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 
 from mistral.db.v2 import api as db_api
-from mistral.openstack.common import log as logging
+from mistral import exceptions as exc
 from mistral.services import workbooks as wb_service
+from mistral.services import workflows as wf_service
 from mistral.tests.unit.engine import base
 from mistral.workflow import states
 
@@ -152,3 +154,27 @@ class ReverseWorkflowEngineTest(base.EngineTestCase):
 
         self._assert_single_item(tasks, name='task4', state=states.SUCCESS)
         self._assert_single_item(tasks, name='task3', state=states.SUCCESS)
+
+    def test_inconsistent_task_names(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          type: reverse
+
+          tasks:
+            task2:
+              action: std.noop
+
+            task3:
+              action: std.noop
+              requires: [task1]
+        """
+
+        exception = self.assertRaises(
+            exc.InvalidModelException,
+            wf_service.create_workflows,
+            wf_text
+        )
+
+        self.assertIn("Task 'task1' not found", exception.message)

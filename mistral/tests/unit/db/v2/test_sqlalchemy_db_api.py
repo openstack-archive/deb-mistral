@@ -18,7 +18,7 @@
 import copy
 import datetime
 
-from oslo.config import cfg
+from oslo_config import cfg
 
 from mistral import context as auth_context
 from mistral.db.v2.sqlalchemy import api as db_api
@@ -81,7 +81,7 @@ class WorkbookTest(SQLAlchemyTest):
         db_api.create_workbook(WORKBOOKS[0])
 
         self.assertRaises(
-            exc.DBDuplicateEntry,
+            exc.DBDuplicateEntryException,
             db_api.create_workbook,
             WORKBOOKS[0]
         )
@@ -164,15 +164,7 @@ class WorkbookTest(SQLAlchemyTest):
         self.assertEqual(created, fetched[0])
 
         # Create a new user.
-        ctx = auth_context.MistralContext(
-            user_id='9-0-44-5',
-            project_id='99-88-33',
-            user_name='test-user',
-            project_name='test-another',
-            is_admin=False
-        )
-
-        auth_context.set_ctx(ctx)
+        auth_context.set_ctx(test_base.get_context(default=False))
 
         created = db_api.create_workbook(WORKBOOKS[1])
         fetched = db_api.get_workbooks()
@@ -191,15 +183,7 @@ class WorkbookTest(SQLAlchemyTest):
         self.assertEqual(created1, fetched[0])
 
         # Create a new user.
-        ctx = auth_context.MistralContext(
-            user_id='9-0-44-5',
-            project_id='99-88-33',
-            user_name='test-user',
-            project_name='test-another',
-            is_admin=False
-        )
-
-        auth_context.set_ctx(ctx)
+        auth_context.set_ctx(test_base.get_context(default=False))
 
         fetched = db_api.get_workbooks()
 
@@ -222,15 +206,7 @@ class WorkbookTest(SQLAlchemyTest):
                             auth_context.ctx().project_id)
 
         # Create a new user.
-        ctx = auth_context.MistralContext(
-            user_id='9-0-44-5',
-            project_id='99-88-33',
-            user_name='test-user',
-            project_name='test-another',
-            is_admin=False
-        )
-
-        auth_context.set_ctx(ctx)
+        auth_context.set_ctx(test_base.get_context(default=False))
 
         fetched = db_api.get_workbooks()
 
@@ -286,7 +262,7 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
         db_api.create_workflow_definition(WF_DEFINITIONS[0])
 
         self.assertRaises(
-            exc.DBDuplicateEntry,
+            exc.DBDuplicateEntryException,
             db_api.create_workflow_definition,
             WF_DEFINITIONS[0]
         )
@@ -378,15 +354,7 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
         self.assertEqual(created1, fetched[0])
 
         # Create a new user.
-        ctx = auth_context.MistralContext(
-            user_id='9-0-44-5',
-            project_id='99-88-33',
-            user_name='test-user',
-            project_name='test-another',
-            is_admin=False
-        )
-
-        auth_context.set_ctx(ctx)
+        auth_context.set_ctx(test_base.get_context(default=False))
 
         fetched = db_api.get_workflow_definitions()
 
@@ -411,15 +379,7 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
         )
 
         # Create a new user.
-        ctx = auth_context.MistralContext(
-            user_id='9-0-44-5',
-            project_id='99-88-33',
-            user_name='test-user',
-            project_name='test-another',
-            is_admin=False
-        )
-
-        auth_context.set_ctx(ctx)
+        auth_context.set_ctx(test_base.get_context(default=False))
 
         fetched = db_api.get_workflow_definitions()
 
@@ -478,7 +438,7 @@ class ActionDefinitionTest(SQLAlchemyTest):
         db_api.create_action_definition(ACTION_DEFINITIONS[0])
 
         self.assertRaises(
-            exc.DBDuplicateEntry,
+            exc.DBDuplicateEntryException,
             db_api.create_action_definition,
             ACTION_DEFINITIONS[0]
         )
@@ -673,6 +633,18 @@ class ActionExecutionTest(SQLAlchemyTest):
             created.id
         )
 
+    def test_delete_other_tenant_action_execution(self):
+        created = db_api.create_action_execution(ACTION_EXECS[0])
+
+        # Create a new user.
+        auth_context.set_ctx(test_base.get_context(default=False))
+
+        self.assertRaises(
+            exc.NotFoundException,
+            db_api.delete_action_execution,
+            created.id
+        )
+
     def test_trim_status_info(self):
         created = db_api.create_action_execution(ACTION_EXECS[0])
 
@@ -709,7 +681,8 @@ WF_EXECS = [
         'updated_at': None,
         'context': None,
         'task_id': None,
-        'trust_id': None
+        'trust_id': None,
+        'description': None,
     },
     {
         'spec': {},
@@ -720,7 +693,8 @@ WF_EXECS = [
         'updated_at': None,
         'context': {'image_id': '123123'},
         'task_id': None,
-        'trust_id': None
+        'trust_id': None,
+        'description': None,
     }
 ]
 
@@ -1129,7 +1103,7 @@ class CronTriggerTest(SQLAlchemyTest):
         db_api.create_cron_trigger(CRON_TRIGGERS[0])
 
         self.assertRaises(
-            exc.DBDuplicateEntry,
+            exc.DBDuplicateEntryException,
             db_api.create_cron_trigger,
             CRON_TRIGGERS[0]
         )
@@ -1255,7 +1229,7 @@ class EnvironmentTest(SQLAlchemyTest):
         db_api.create_environment(ENVIRONMENTS[0])
 
         self.assertRaises(
-            exc.DBDuplicateEntry,
+            exc.DBDuplicateEntryException,
             db_api.create_environment,
             ENVIRONMENTS[0]
         )
@@ -1438,7 +1412,7 @@ class TXTest(SQLAlchemyTest):
 
                 db_api.create_workbook(WORKBOOKS[0])
 
-        except exc.DBDuplicateEntry:
+        except exc.DBDuplicateEntryException:
             pass
 
         self.assertFalse(self.is_db_session_open())

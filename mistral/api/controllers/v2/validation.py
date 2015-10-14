@@ -12,11 +12,11 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from oslo_log import log as logging
 import pecan
 from pecan import rest
 
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 
 
 LOG = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ class SpecValidationController(rest.RestController):
 
     def __init__(self, parser):
         super(SpecValidationController, self).__init__()
+
         self._parse_func = parser
 
     @pecan.expose('json')

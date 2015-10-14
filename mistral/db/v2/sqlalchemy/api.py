@@ -16,9 +16,12 @@
 import contextlib
 import sys
 
-from oslo.config import cfg
-from oslo.db import exception as db_exc
-from oslo.utils import timeutils
+from oslo_config import cfg
+from oslo_db import exception as db_exc
+from oslo_db import sqlalchemy as oslo_sqlalchemy
+from oslo_db.sqlalchemy import utils as db_utils
+from oslo_log import log as logging
+from oslo_utils import timeutils
 import sqlalchemy as sa
 
 from mistral.db.sqlalchemy import base as b
@@ -26,7 +29,6 @@ from mistral.db.sqlalchemy import model_base as mb
 from mistral.db.sqlalchemy import sqlite_lock
 from mistral.db.v2.sqlalchemy import models
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral.services import security
 
 CONF = cfg.CONF
@@ -94,14 +96,14 @@ def acquire_lock(model, id, session=None):
 
         query.update(
             {'updated_at': timeutils.utcnow()},
-            synchronize_session=False
+            synchronize_session='fetch',
         )
     else:
         sqlite_lock.acquire_lock(id, session)
 
 
-def _secure_query(model):
-    query = b.model_query(model)
+def _secure_query(model, *columns):
+    query = b.model_query(model, columns)
 
     if issubclass(model, mb.MistralSecureModelBase):
         query = query.filter(
@@ -112,6 +114,23 @@ def _secure_query(model):
         )
 
     return query
+
+
+def _paginate_query(model, limit=None, marker=None, sort_keys=None,
+                    sort_dirs=None, query=None):
+    if not query:
+        query = _secure_query(model)
+
+    query = db_utils.paginate_query(
+        query,
+        model,
+        limit,
+        sort_keys if sort_keys else {},
+        marker=marker,
+        sort_dirs=sort_dirs
+    )
+
+    return query.all()
 
 
 def _delete_all(model, session=None, **kwargs):
@@ -165,7 +184,7 @@ def create_workbook(values, session=None):
     try:
         wb.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for WorkbookDefinition: %s" % e.columns
         )
 
@@ -215,6 +234,19 @@ def delete_workbooks(**kwargs):
 
 # Workflow definitions.
 
+
+WORKFLOW_COL_MAPPING = {
+    'id': models.WorkflowDefinition.id,
+    'name': models.WorkflowDefinition.name,
+    'input': models.WorkflowDefinition.spec,
+    'definition': models.WorkflowDefinition.definition,
+    'tags': models.WorkflowDefinition.tags,
+    'scope': models.WorkflowDefinition.scope,
+    'created_at': models.WorkflowDefinition.created_at,
+    'updated_at': models.WorkflowDefinition.updated_at
+}
+
+
 def get_workflow_definition(name):
     wf_def = _get_workflow_definition(name)
 
@@ -226,12 +258,43 @@ def get_workflow_definition(name):
     return wf_def
 
 
+def get_workflow_definition_by_id(id):
+    wf_def = _get_workflow_definition_by_id(id)
+
+    if not wf_def:
+        raise exc.NotFoundException(
+            "Workflow not found [workflow_id=%s]" % id
+        )
+
+    return wf_def
+
+
 def load_workflow_definition(name):
     return _get_workflow_definition(name)
 
 
-def get_workflow_definitions(**kwargs):
-    return _get_collection_sorted_by_name(models.WorkflowDefinition, **kwargs)
+def get_workflow_definitions(limit=None, marker=None, sort_keys=None,
+                             sort_dirs=None, fields=None, **kwargs):
+    columns = (
+        tuple(WORKFLOW_COL_MAPPING.get(f) for f in fields) if fields else ()
+    )
+
+    query = _secure_query(models.WorkflowDefinition, *columns)
+
+    try:
+        return _paginate_query(
+            models.WorkflowDefinition,
+            limit,
+            marker,
+            sort_keys,
+            sort_dirs,
+            query
+        )
+    except Exception as e:
+        raise exc.DBQueryEntryException(
+            "Failed when querying database, error type: %s, "
+            "error message: %s" % (e.__class__.__name__, e.message)
+        )
 
 
 @b.session_aware()
@@ -243,7 +306,7 @@ def create_workflow_definition(values, session=None):
     try:
         wf_def.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for WorkflowDefinition: %s" % e.columns
         )
 
@@ -292,7 +355,22 @@ def _get_workflow_definition(name):
     return _get_db_object_by_name(models.WorkflowDefinition, name)
 
 
+def _get_workflow_definition_by_id(id):
+    return _get_db_object_by_id(models.WorkflowDefinition, id)
+
+
 # Action definitions.
+
+def get_action_definition_by_id(id):
+    action_def = _get_db_object_by_id(models.ActionDefinition, id)
+
+    if not action_def:
+        raise exc.NotFoundException(
+            "Action not found [action_id=%s]" % id
+        )
+
+    return action_def
+
 
 def get_action_definition(name):
     a_def = _get_action_definition(name)
@@ -309,8 +387,24 @@ def load_action_definition(name):
     return _get_action_definition(name)
 
 
-def get_action_definitions(**kwargs):
-    return _get_collection_sorted_by_name(models.ActionDefinition, **kwargs)
+def get_action_definitions(limit=None, marker=None, sort_keys=['name'],
+                           sort_dirs=None, **kwargs):
+    query = _secure_query(models.ActionDefinition).filter_by(**kwargs)
+
+    try:
+        return _paginate_query(
+            models.ActionDefinition,
+            limit,
+            marker,
+            sort_keys,
+            sort_dirs,
+            query
+        )
+    except Exception as e:
+        raise exc.DBQueryEntryException(
+            "Failed when querying database, error type: %s, "
+            "error message: %s" % (e.__class__.__name__, e.message)
+        )
 
 
 @b.session_aware()
@@ -322,7 +416,7 @@ def create_action_definition(values, session=None):
     try:
         a_def.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for action %s: %s" % (a_def.name, e.columns)
         )
 
@@ -405,7 +499,7 @@ def create_execution(values, session=None):
     try:
         ex.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for Execution: %s" % e.columns
         )
 
@@ -491,7 +585,7 @@ def create_action_execution(values, session=None):
     try:
         a_ex.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for ActionExecution: %s" % e.columns
         )
 
@@ -564,8 +658,24 @@ def ensure_workflow_execution_exists(id):
     get_workflow_execution(id)
 
 
-def get_workflow_executions(**kwargs):
-    return _get_workflow_executions(**kwargs)
+def get_workflow_executions(limit=None, marker=None, sort_keys=['created_at'],
+                            sort_dirs=None, **kwargs):
+    query = _secure_query(models.WorkflowExecution).filter_by(**kwargs)
+
+    try:
+        return _paginate_query(
+            models.WorkflowExecution,
+            limit,
+            marker,
+            sort_keys,
+            sort_dirs,
+            query
+        )
+    except Exception as e:
+        raise exc.DBQueryEntryException(
+            "Failed when quering database, error type: %s, "
+            "error message: %s" % (e.__class__.__name__, e.message)
+        )
 
 
 @b.session_aware()
@@ -577,7 +687,7 @@ def create_workflow_execution(values, session=None):
     try:
         wf_ex.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for WorkflowExecution: %s" % e.columns
         )
 
@@ -619,10 +729,6 @@ def delete_workflow_executions(**kwargs):
     return _delete_all(models.WorkflowExecution, **kwargs)
 
 
-def _get_workflow_executions(**kwargs):
-    return _get_collection_sorted_by_time(models.WorkflowExecution, **kwargs)
-
-
 def _get_workflow_execution(id):
     return _get_db_object_by_id(models.WorkflowExecution, id)
 
@@ -655,7 +761,7 @@ def create_task_execution(values, session=None):
     try:
         task_ex.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for TaskExecution: %s" % e.columns
         )
 
@@ -715,8 +821,9 @@ def create_delayed_call(values, session=None):
     try:
         delayed_call.save(session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry("Duplicate entry for DelayedCall: %s"
-                                   % e.columns)
+        raise exc.DBDuplicateEntryException(
+            "Duplicate entry for DelayedCall: %s" % e.columns
+        )
 
     return delayed_call
 
@@ -738,7 +845,63 @@ def get_delayed_calls_to_start(time, session=None):
     query = b.model_query(models.DelayedCall)
 
     query = query.filter(models.DelayedCall.execution_time < time)
+    query = query.filter_by(processing=False)
     query = query.order_by(models.DelayedCall.execution_time)
+
+    return query.all()
+
+
+@b.session_aware()
+def update_delayed_call(id, values, query_filter=None, session=None):
+    if query_filter:
+        try:
+            specimen = models.DelayedCall(id=id, **query_filter)
+            delayed_call = b.model_query(
+                models.DelayedCall).update_on_match(specimen=specimen,
+                                                    surrogate_key='id',
+                                                    values=values)
+            return delayed_call, 1
+
+        except oslo_sqlalchemy.update_match.NoRowsMatched as e:
+            LOG.debug(
+                "No rows matched for update call [id=%s, values=%s, "
+                "query_filter=%s,"
+                "exception=%s]", id, values, query_filter, e
+            )
+
+            return None, 0
+
+    else:
+        delayed_call = get_delayed_call(id=id, session=session)
+        delayed_call.update(values)
+
+        return delayed_call, len(session.dirty)
+
+
+@b.session_aware()
+def get_delayed_call(id, session=None):
+    delayed_call = _get_delayed_call(id=id, session=session)
+
+    if not delayed_call:
+        raise exc.NotFoundException("Delayed Call not found [id=%s]" % id)
+
+    return delayed_call
+
+
+@b.session_aware()
+def get_expired_executions(time, session=None):
+    query = b.model_query(models.WorkflowExecution)
+
+    # Only WorkflowExecution that are not a child of other WorkflowExecution.
+    query = query.filter(models.WorkflowExecution.
+                         task_execution_id == sa.null())
+    query = query.filter(models.WorkflowExecution.updated_at < time)
+    query = query.filter(
+        sa.or_(
+            models.WorkflowExecution.state == "SUCCESS",
+            models.WorkflowExecution.state == "ERROR"
+        )
+    )
 
     return query.all()
 
@@ -789,9 +952,15 @@ def create_cron_trigger(values, session=None):
     try:
         cron_trigger.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for cron trigger %s: %s"
             % (cron_trigger.name, e.columns)
+        )
+    # TODO(nmakhotkin): Remove this 'except' after fixing
+    # https://bugs.launchpad.net/oslo.db/+bug/1458583.
+    except db_exc.DBError as e:
+        raise exc.DBDuplicateEntryException(
+            "Duplicate entry for cron trigger: %s" % e
         )
 
     return cron_trigger
@@ -872,7 +1041,7 @@ def create_environment(values, session=None):
     try:
         env.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntry(
+        raise exc.DBDuplicateEntryException(
             "Duplicate entry for Environment: %s" % e.columns
         )
 

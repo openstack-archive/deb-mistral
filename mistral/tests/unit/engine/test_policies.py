@@ -12,12 +12,14 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from oslo.config import cfg
+import mock
+from oslo_config import cfg
+from oslo_log import log as logging
 
+from mistral.actions import std_actions
 from mistral.db.v2 import api as db_api
 from mistral.engine import policies
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral.services import workbooks as wb_service
 from mistral.services import workflows as wf_service
 from mistral.tests.unit.engine import base
@@ -184,9 +186,8 @@ workflows:
 
     tasks:
       task1:
-        action: std.echo output="Hi!"
-        wait-after: 4
-        timeout: 3
+        action: std.async_noop
+        timeout: 1
 """
 
 
@@ -202,6 +203,26 @@ workflows:
       task1:
         action: std.echo output="Hi!"
         pause-before: True
+        on-success:
+          - task2
+      task2:
+        action: std.echo output="Bye!"
+"""
+
+
+PAUSE_BEFORE_DELAY_WB = """
+---
+version: '2.0'
+name: wb
+workflows:
+  wf1:
+    type: direct
+
+    tasks:
+      task1:
+        action: std.echo output="Hi!"
+        wait-before: 1
+        pause-before: true
         on-success:
           - task2
       task2:
@@ -317,7 +338,7 @@ class PoliciesTest(base.EngineTestCase):
         wf_ex = db_api.get_workflow_execution(wf_ex.id)
         task_ex = wf_ex.task_executions[0]
 
-        self.assertEqual(states.DELAYED, task_ex.state)
+        self.assertEqual(states.RUNNING_DELAYED, task_ex.state)
         self.assertDictEqual(
             {'wait_before_policy': {'skip': True}},
             task_ex.runtime_context
@@ -335,7 +356,7 @@ class PoliciesTest(base.EngineTestCase):
         exec_db = db_api.get_execution(exec_db.id)
         task_db = exec_db.task_executions[0]
 
-        self.assertEqual(states.DELAYED, task_db.state)
+        self.assertEqual(states.RUNNING_DELAYED, task_db.state)
 
         self._await(lambda: self.is_execution_success(exec_db.id))
 
@@ -385,6 +406,42 @@ class PoliciesTest(base.EngineTestCase):
         self.assertEqual(
             2,
             task_ex.runtime_context["retry_task_policy"]["retry_no"]
+        )
+
+    def test_retry_policy_never_happen(self):
+        retry_wb = """---
+        version: '2.0'
+
+        name: wb
+
+        workflows:
+          wf1:
+            tasks:
+              task1:
+                action: std.echo output="hello"
+                retry:
+                  count: 3
+                  delay: 1
+        """
+        wb_service.create_workbook_v2(retry_wb)
+
+        # Start workflow.
+        wf_ex = self.engine.start_workflow('wb.wf1', {})
+
+        # Note: We need to reread execution to access related tasks.
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self._await(lambda: self.is_task_success(task_ex.id))
+
+        self._await(lambda: self.is_execution_success(wf_ex.id))
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self.assertEqual(
+            {},
+            task_ex.runtime_context["retry_task_policy"]
         )
 
     def test_retry_policy_break_on(self):
@@ -465,6 +522,83 @@ class PoliciesTest(base.EngineTestCase):
             task_ex.runtime_context['retry_task_policy']['retry_no']
         )
 
+    @mock.patch.object(
+        std_actions.EchoAction, 'run', mock.Mock(side_effect=[1, 2, 3, 4])
+    )
+    def test_retry_continue_on(self):
+        retry_wb = """---
+        version: '2.0'
+
+        name: wb
+
+        workflows:
+          wf1:
+            tasks:
+              task1:
+                action: std.echo output="mocked result"
+                retry:
+                  count: 4
+                  delay: 1
+                  continue-on: <% $.task1 < 3 %>
+        """
+        wb_service.create_workbook_v2(retry_wb)
+
+        # Start workflow.
+        wf_ex = self.engine.start_workflow('wb.wf1', {})
+
+        # Note: We need to reread execution to access related tasks.
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self._await(lambda: self.is_task_success(task_ex.id))
+
+        self._await(lambda: self.is_execution_success(wf_ex.id))
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self.assertEqual(
+            2,
+            task_ex.runtime_context['retry_task_policy']['retry_no']
+        )
+
+    def test_retry_continue_on_not_happened(self):
+        retry_wb = """---
+        version: '2.0'
+
+        name: wb
+
+        workflows:
+          wf1:
+            tasks:
+              task1:
+                action: std.echo output=4
+                retry:
+                  count: 4
+                  delay: 1
+                  continue-on: <% $.task1 <= 3 %>
+        """
+        wb_service.create_workbook_v2(retry_wb)
+
+        # Start workflow.
+        wf_ex = self.engine.start_workflow('wb.wf1', {})
+
+        # Note: We need to reread execution to access related tasks.
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self._await(lambda: self.is_task_success(task_ex.id))
+
+        self._await(lambda: self.is_execution_success(wf_ex.id))
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self.assertEqual(
+            {},
+            task_ex.runtime_context['retry_task_policy']
+        )
+
     def test_retry_policy_one_line(self):
         retry_wb = """---
         version: '2.0'
@@ -500,6 +634,93 @@ class PoliciesTest(base.EngineTestCase):
             2,
             task_ex.runtime_context['retry_task_policy']['retry_no']
         )
+
+    def test_retry_policy_subworkflow_force_fail(self):
+        retry_wb = """---
+        version: '2.0'
+
+        name: wb
+
+        workflows:
+          main:
+            tasks:
+              task1:
+                workflow: work
+                retry:
+                  count: 3
+                  delay: 1
+
+          work:
+            tasks:
+              do:
+                action: std.fail
+                on-error:
+                  - fail
+        """
+        wb_service.create_workbook_v2(retry_wb)
+
+        # Start workflow.
+        wf_ex = self.engine.start_workflow('wb.main', {})
+
+        # Note: We need to reread execution to access related tasks.
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self._await(lambda: self.is_task_error(task_ex.id))
+        self._await(lambda: self.is_execution_error(wf_ex.id))
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self.assertEqual(
+            2,
+            task_ex.runtime_context['retry_task_policy']['retry_no']
+        )
+
+    @mock.patch.object(
+        std_actions.EchoAction,
+        'run',
+        mock.Mock(side_effect=[exc.ActionException(), "mocked result"])
+    )
+    def test_retry_policy_succeed_after_failure(self):
+        retry_wb = """---
+        version: '2.0'
+
+        name: wb
+
+        workflows:
+          wf1:
+            output:
+              result: <% $.task1 %>
+            tasks:
+              task1:
+                action: std.echo output="mocked result"
+                retry:
+                  count: 3
+                  delay: 1
+        """
+        wb_service.create_workbook_v2(retry_wb)
+
+        # Start workflow.
+        wf_ex = self.engine.start_workflow('wb.wf1', {})
+
+        # Note: We need to reread execution to access related tasks.
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self._await(lambda: self.is_task_success(task_ex.id))
+
+        self._await(lambda: self.is_execution_success(wf_ex.id))
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = wf_ex.task_executions[0]
+
+        self.assertEqual(
+            {},
+            task_ex.runtime_context['retry_task_policy']
+        )
+
+        self.assertDictEqual({'result': 'mocked result'}, wf_ex.output)
 
     def test_timeout_policy(self):
         wb_service.create_workbook_v2(TIMEOUT_WB)
@@ -538,7 +759,7 @@ class PoliciesTest(base.EngineTestCase):
         self._await(lambda: self.is_execution_error(wf_ex.id))
 
         # Wait until timeout exceeds.
-        self._sleep(2)
+        self._sleep(1)
 
         wf_ex = db_api.get_workflow_execution(wf_ex.id)
         tasks_db = wf_ex.task_executions
@@ -562,6 +783,54 @@ class PoliciesTest(base.EngineTestCase):
 
         self._await(lambda: self.is_execution_paused(wf_ex.id))
         self._sleep(1)
+        self.engine.resume_workflow(wf_ex.id)
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        self._assert_single_item(wf_ex.task_executions, name='task1')
+
+        self._await(lambda: self.is_execution_success(wf_ex.id))
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task1'
+        )
+        next_task_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task2'
+        )
+
+        self.assertEqual(states.SUCCESS, task_ex.state)
+        self.assertEqual(states.SUCCESS, next_task_ex.state)
+
+    def test_pause_before_with_delay_policy(self):
+        wb_service.create_workbook_v2(PAUSE_BEFORE_DELAY_WB)
+
+        # Start workflow.
+        wf_ex = self.engine.start_workflow('wb.wf1', {})
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        task_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task1'
+        )
+
+        self.assertEqual(states.IDLE, task_ex.state)
+
+        # Verify wf paused by pause-before
+        self._await(lambda: self.is_execution_paused(wf_ex.id))
+
+        # Allow wait-before to expire
+        self._sleep(2)
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+        # Verify wf still paused (wait-before didn't reactivate)
+        self._await(lambda: self.is_execution_paused(wf_ex.id))
+
+        task_ex = db_api.get_task_execution(task_ex.id)
+        self.assertEqual(states.IDLE, task_ex.state)
+
         self.engine.resume_workflow(wf_ex.id)
 
         wf_ex = db_api.get_workflow_execution(wf_ex.id)

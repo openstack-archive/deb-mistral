@@ -24,6 +24,10 @@ function usage {
   echo "                               Default: .venv"
   echo "  --tools-path <dir>          Location of the tools directory"
   echo "                               Default: \$(pwd)"
+  echo "  --db-type <name>            Database type"
+  echo "                               Default: sqlite"
+  echo "  --parallel <bool>           Determines whether the tests are run in one thread or not"
+  echo "                               Default: false"
   echo ""
   echo "Note: with no options specified, the script will try to run the tests in a virtual environment,"
   echo "      If no virtualenv is found, the script will ask if you would like to create one.  If you "
@@ -59,6 +63,14 @@ function process_options {
         (( i++ ))
         tools_path=${!i}
         ;;
+      --db-type)
+        (( i++ ))
+        db_type=${!i}
+        ;;
+      --parallel)
+        (( i++ ))
+        parallel=${!i}
+        ;;
       -*) testropts="$testropts ${!i}";;
       *) testrargs="$testrargs ${!i}"
     esac
@@ -66,6 +78,8 @@ function process_options {
   done
 }
 
+db_type=${db_type:-sqlite}
+parallel=${parallel:-false}
 tool_path=${tools_path:-$(pwd)}
 venv_path=${venv_path:-$(pwd)}
 venv_dir=${venv_name:-.venv}
@@ -89,6 +103,8 @@ LANG=en_US.UTF-8
 LANGUAGE=en_US:en
 LC_ALL=C
 
+ZUUL_PROJECT=${ZUUL_PROJECT:-""}
+
 process_options $@
 # Make our paths available to other scripts we call
 export venv_path
@@ -101,6 +117,62 @@ if [ $no_site_packages -eq 1 ]; then
   installvenvopts="--no-site-packages"
 fi
 
+
+function setup_db {
+    case ${db_type} in
+        sqlite )
+            rm -f tests.sqlite
+            ;;
+        postgresql )
+            echo "Setting up Mistral DB in PostgreSQL"
+
+            # If ZUUL_PROJECT is specified it means that this script is executing on
+            # Jenkins gate, so we should use already created postgresql db
+            if ! [ -n "$ZUUL_PROJECT"]
+            then
+              echo "PostgreSQL is initialized. 'openstack_citest' db will be used."
+              dbname="openstack_citest"
+              username="openstack_citest"
+              password="openstack_citest"
+            else
+              # Create the user and database.
+              # Assume trust is setup on localhost in the postgresql config file.
+              dbname="mistral"
+              username="mistral"
+              password="m1stral"
+              sudo -u postgres psql -c "DROP DATABASE IF EXISTS $dbname;"
+              sudo -u postgres psql -c "DROP USER IF EXISTS $username;"
+              sudo -u postgres psql -c "CREATE USER $username WITH ENCRYPTED PASSWORD '$password';"
+              sudo -u postgres psql -c "CREATE DATABASE $dbname OWNER $username;"
+            fi
+            ;;
+    esac
+}
+
+function setup_db_pylib {
+    case ${db_type} in
+        postgresql )
+            echo "Installing python library for PostgreSQL."
+            ${wrapper} pip install psycopg2
+            ;;
+    esac
+}
+
+function setup_db_cfg {
+    case ${db_type} in
+        sqlite )
+            rm -f .mistral.conf
+            ;;
+        postgresql )
+            oslo-config-generator --config-file ./tools/config/config-generator.mistral.conf --output-file .mistral.conf
+            sed -i "s/#connection = <None>/connection = postgresql:\/\/$username:$password@localhost\/$dbname/g" .mistral.conf
+            ;;
+    esac
+}
+
+function cleanup {
+    rm -f .mistral.conf
+}
 
 function run_tests {
   # Cleanup *pyc
@@ -129,7 +201,13 @@ function run_tests {
   # Just run the test suites in current environment
   set +e
   testrargs=$(echo "$testrargs" | sed -e's/^\s*\(.*\)\s*$/\1/')
-  TESTRTESTS="$TESTRTESTS --testr-args='--subunit $testropts $testrargs'"
+  if [ $parallel = true ]
+  then
+    runoptions="--subunit"
+  else
+    runoptions="--concurrency=1 --subunit"
+  fi
+  TESTRTESTS="$TESTRTESTS --testr-args='$runoptions $testropts $testrargs'"
   OS_TEST_PATH=$(echo $testrargs|grep -o 'mistral\.tests[^[:space:]:]*\+'|tr . /)
   if [ -d "$OS_TEST_PATH" ]; then
       wrapper="OS_TEST_PATH=$OS_TEST_PATH $wrapper"
@@ -142,6 +220,7 @@ function run_tests {
   set -e
 
   copy_subunit_log
+  cleanup
 
   if [ $coverage -eq 1 ]; then
     echo "Generating coverage report in covhtml/"
@@ -167,7 +246,7 @@ function run_pep8 {
 }
 
 
-TESTRTESTS="python -m mistral.openstack.common.lockutils python setup.py testr"
+TESTRTESTS="python setup.py testr"
 
 if [ $never_venv -eq 0 ]
 then
@@ -210,9 +289,11 @@ if [ $just_pep8 -eq 1 ]; then
 fi
 
 if [ $recreate_db -eq 1 ]; then
-    rm -f tests.sqlite
+    setup_db
 fi
 
+setup_db_pylib
+setup_db_cfg
 run_tests
 
 # NOTE(sirp): we only want to run pep8 when we're running the full-test suite,

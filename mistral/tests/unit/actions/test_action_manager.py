@@ -14,8 +14,9 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from oslo_log import log as logging
+
 from mistral.actions import std_actions as std
-from mistral.openstack.common import log as logging
 from mistral.services import action_manager as a_m
 from mistral.tests import base
 
@@ -36,6 +37,12 @@ class ActionManagerTest(base.DbTestCase):
 
         self._assert_single_item(action_list, name="nova.servers_get")
         self._assert_single_item(action_list, name="nova.volumes_delete")
+
+        server_find_action = self._assert_single_item(
+            action_list,
+            name="nova.servers_find"
+        )
+        self.assertIn('**', server_find_action.input)
 
         self._assert_single_item(action_list, name="keystone.users_list")
         self._assert_single_item(action_list, name="keystone.trusts_create")

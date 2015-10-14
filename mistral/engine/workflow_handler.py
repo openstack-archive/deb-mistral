@@ -23,8 +23,8 @@ from mistral.workflow import states
 from mistral.workflow import utils as wf_utils
 
 
-def succeed_workflow(wf_ex, final_context):
-    set_execution_state(wf_ex, states.SUCCESS)
+def succeed_workflow(wf_ex, final_context, state_info=None):
+    set_execution_state(wf_ex, states.SUCCESS, state_info)
 
     wf_spec = spec_parser.get_workflow_spec(wf_ex.spec)
 
@@ -33,15 +33,19 @@ def succeed_workflow(wf_ex, final_context):
     if wf_ex.task_execution_id:
         _schedule_send_result_to_parent_workflow(wf_ex)
 
+    return wf_ex
+
 
 def fail_workflow(wf_ex, state_info):
     if states.is_paused_or_completed(wf_ex.state):
-        return
+        return wf_ex
 
     set_execution_state(wf_ex, states.ERROR, state_info)
 
     if wf_ex.task_execution_id:
         _schedule_send_result_to_parent_workflow(wf_ex)
+
+    return wf_ex
 
 
 def _schedule_send_result_to_parent_workflow(wf_ex):

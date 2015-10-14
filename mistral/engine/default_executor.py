@@ -14,10 +14,12 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from oslo_log import log as logging
+
 from mistral.actions import action_factory as a_f
+from mistral import coordination
 from mistral.engine import base
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral.utils import inspect_utils as i_u
 from mistral.workflow import utils as wf_utils
 
@@ -25,9 +27,11 @@ from mistral.workflow import utils as wf_utils
 LOG = logging.getLogger(__name__)
 
 
-class DefaultExecutor(base.Executor):
+class DefaultExecutor(base.Executor, coordination.Service):
     def __init__(self, engine_client):
         self._engine_client = engine_client
+
+        coordination.Service.__init__(self, 'executor_group')
 
     def run_action(self, action_ex_id, action_class_str, attributes,
                    action_params):
@@ -39,24 +43,34 @@ class DefaultExecutor(base.Executor):
         :param action_params: Action parameters.
         """
 
-        def send_error_to_engine(error_msg):
-            self._engine_client.on_action_complete(
-                action_ex_id,
-                wf_utils.Result(error=error_msg)
-            )
+        def send_error_back(error_msg):
+            error_result = wf_utils.Result(error=error_msg)
+
+            if action_ex_id:
+                self._engine_client.on_action_complete(
+                    action_ex_id,
+                    error_result
+                )
+            else:
+                return error_result
 
         action_cls = a_f.construct_action_class(action_class_str, attributes)
 
         try:
             action = action_cls(**action_params)
+
             result = action.run()
 
-            if action.is_sync():
-                self._engine_client.on_action_complete(
-                    action_ex_id,
-                    wf_utils.Result(data=result)
-                )
-            return
+            # Note: it's made for backwards compatibility with already
+            # existing Mistral actions which don't return result as
+            # instance of workflow.utils.Result.
+            if not isinstance(result, wf_utils.Result):
+                result = wf_utils.Result(data=result)
+
+            if action_ex_id and (action.is_sync() or result.is_error()):
+                self._engine_client.on_action_complete(action_ex_id, result)
+
+            return result
         except TypeError as e:
             msg = ("Failed to initialize action %s. Action init params = %s."
                    " Actual init params = %s. More info: %s"
@@ -73,4 +87,4 @@ class DefaultExecutor(base.Executor):
             msg = str(e)
 
         # Send error info to engine.
-        send_error_to_engine(msg)
+        return send_error_back(msg)

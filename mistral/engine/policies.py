@@ -16,8 +16,10 @@
 from mistral.db.v2 import api as db_api
 from mistral.engine import base
 from mistral.engine import rpc
+from mistral import expressions
 from mistral.services import scheduler
 from mistral.utils import wf_trace
+from mistral.workflow import data_flow
 from mistral.workflow import states
 
 
@@ -29,7 +31,7 @@ def _log_task_delay(task_ex, delay_sec):
     wf_trace.info(
         task_ex,
         "Task '%s' [%s -> %s, delay = %s sec]" %
-        (task_ex.name, task_ex.state, states.DELAYED, delay_sec)
+        (task_ex.name, task_ex.state, states.RUNNING_DELAYED, delay_sec)
     )
 
 
@@ -45,11 +47,11 @@ def build_policies(policies_spec, wf_spec):
 
 def get_policy_factories():
     return [
+        build_pause_before_policy,
         build_wait_before_policy,
         build_wait_after_policy,
         build_retry_policy,
         build_timeout_policy,
-        build_pause_before_policy,
         build_concurrency_policy
     ]
 
@@ -99,7 +101,8 @@ def build_retry_policy(policies_spec):
     return RetryPolicy(
         retry.get_count(),
         retry.get_delay(),
-        retry.get_break_on()
+        retry.get_break_on(),
+        retry.get_continue_on()
     )
 
 
@@ -171,25 +174,25 @@ class WaitBeforePolicy(base.TaskPolicy):
             wf_trace.info(
                 task_ex,
                 "Task '%s' [%s -> %s]"
-                % (task_ex.name, states.DELAYED, states.RUNNING)
+                % (task_ex.name, states.RUNNING_DELAYED, states.RUNNING)
             )
 
             task_ex.state = states.RUNNING
 
             return
 
-        policy_context.update({'skip': True})
+        if task_ex.state != states.IDLE:
+            policy_context.update({'skip': True})
+            _log_task_delay(task_ex, self.delay)
 
-        _log_task_delay(task_ex, self.delay)
+            task_ex.state = states.RUNNING_DELAYED
 
-        task_ex.state = states.DELAYED
-
-        scheduler.schedule_call(
-            None,
-            _RUN_EXISTING_TASK_PATH,
-            self.delay,
-            task_ex_id=task_ex.id,
-        )
+            scheduler.schedule_call(
+                None,
+                _RUN_EXISTING_TASK_PATH,
+                self.delay,
+                task_ex_id=task_ex.id,
+            )
 
 
 class WaitAfterPolicy(base.TaskPolicy):
@@ -225,7 +228,7 @@ class WaitAfterPolicy(base.TaskPolicy):
 
         state = task_ex.state
         # Set task state to 'DELAYED'.
-        task_ex.state = states.DELAYED
+        task_ex.state = states.RUNNING_DELAYED
 
         # Schedule to change task state to RUNNING again.
         scheduler.schedule_call(
@@ -245,16 +248,23 @@ class RetryPolicy(base.TaskPolicy):
         }
     }
 
-    def __init__(self, count, delay, break_on):
+    def __init__(self, count, delay, break_on, continue_on):
         self.count = count
         self.delay = delay
         self.break_on = break_on
+        self._continue_on_clause = continue_on
 
     def after_task_complete(self, task_ex, task_spec):
         """Possible Cases:
 
         1. state = SUCCESS
-           No need to move to next iteration.
+           if continue_on is not specified,
+           no need to move to next iteration;
+           if current:count achieve retry:count then policy
+           breaks the loop (regardless on continue-on condition);
+           otherwise - check continue_on condition and if
+           it is True - schedule the next iteration,
+           otherwise policy breaks the loop.
         2. retry:count = 5, current:count = 2, state = ERROR,
            state = IDLE/DELAYED, current:count = 3
         3. retry:count = 5, current:count = 4, state = ERROR
@@ -269,18 +279,17 @@ class RetryPolicy(base.TaskPolicy):
             context_key
         )
 
+        continue_on_evaluation = expressions.evaluate(
+            self._continue_on_clause,
+            data_flow.evaluate_task_outbound_context(task_ex)
+        )
+
         task_ex.runtime_context = runtime_context
 
         state = task_ex.state
 
-        if state != states.ERROR:
+        if not states.is_completed(state):
             return
-
-        wf_trace.info(
-            task_ex,
-            "Task '%s' [%s -> ERROR]"
-            % (task_ex.name, task_ex.state)
-        )
 
         policy_context = runtime_context[context_key]
 
@@ -292,12 +301,20 @@ class RetryPolicy(base.TaskPolicy):
 
         retries_remain = retry_no + 1 < self.count
 
-        if not retries_remain or self.break_on:
+        stop_continue_flag = (task_ex.state == states.SUCCESS and
+                              not self._continue_on_clause)
+        stop_continue_flag = (stop_continue_flag or
+                              (self._continue_on_clause and
+                               not continue_on_evaluation))
+        break_triggered = task_ex.state == states.ERROR and self.break_on
+
+        if not retries_remain or break_triggered or stop_continue_flag:
             return
 
         _log_task_delay(task_ex, self.delay)
 
-        task_ex.state = states.DELAYED
+        data_flow.invalidate_task_execution_result(task_ex)
+        task_ex.state = states.RUNNING_DELAYED
 
         policy_context['retry_no'] = retry_no + 1
         runtime_context[context_key] = policy_context
@@ -368,7 +385,7 @@ class PauseBeforePolicy(base.TaskPolicy):
 class ConcurrencyPolicy(base.TaskPolicy):
     _schema = {
         "properties": {
-            "delay": {"concurrency": "integer"},
+            "concurrency": {"type": "integer"},
         }
     }
 

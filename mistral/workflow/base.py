@@ -17,8 +17,9 @@
 import abc
 import copy
 
+from oslo_log import log as logging
+
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral import utils as u
 from mistral.workbook import parser as spec_parser
 from mistral.workflow import commands
@@ -47,19 +48,34 @@ class WorkflowController(object):
         self.wf_ex = wf_ex
         self.wf_spec = spec_parser.get_workflow_spec(wf_ex.spec)
 
-    def continue_workflow(self):
+    def continue_workflow(self, task_ex=None, reset=True):
         """Calculates a list of commands to continue the workflow.
 
         Given a workflow specification this method makes required analysis
         according to this workflow type rules and identifies a list of
         commands needed to continue the workflow.
+
+        :param: task_ex: Task execution to rerun.
+        :param: reset: If true, then purge action executions for the tasks.
         :return: List of workflow commands (instances of
             mistral.workflow.commands.WorkflowCommand).
         """
         if self._is_paused_or_completed():
             return []
 
+        if task_ex:
+            return self._get_rerun_commands([task_ex], reset)
+
         return self._find_next_commands()
+
+    @abc.abstractmethod
+    def is_error_handled_for(self, task_ex):
+        """Determines if error is handled for specific task.
+
+        :return: True if either there is no error at all or
+            error is considered handled.
+        """
+        raise NotImplementedError
 
     @abc.abstractmethod
     def all_errors_handled(self):
@@ -104,9 +120,25 @@ class WorkflowController(object):
         :return: List of workflow commands.
         """
         # Add all tasks in IDLE state.
-        idle_tasks = wf_utils.find_tasks_with_state(self.wf_ex, states.IDLE)
+        idle_tasks = wf_utils.find_task_executions_with_state(
+            self.wf_ex,
+            states.IDLE
+        )
 
         return [commands.RunExistingTask(t) for t in idle_tasks]
+
+    def _get_rerun_commands(self, task_exs, reset=True):
+        """Get commands to rerun existing task executions.
+
+        :param task_exs: List of task executions.
+        :param reset: If true, then purge action executions for the tasks.
+        :return: List of workflow commands.
+        """
+        cmds = [commands.RunExistingTask(t_e, reset) for t_e in task_exs]
+
+        LOG.debug("Found commands: %s" % cmds)
+
+        return cmds
 
     def _is_paused_or_completed(self):
         return states.is_paused_or_completed(self.wf_ex.state)
@@ -122,14 +154,13 @@ class WorkflowController(object):
             if wf_type == wf_ctrl_cls.__workflow_type__:
                 return wf_ctrl_cls
 
-        msg = 'Failed to find a workflow controller [type=%s]' % wf_type
-        raise exc.NotFoundException(msg)
+        raise exc.NotFoundException(
+            'Failed to find a workflow controller [type=%s]' % wf_type
+        )
 
     @staticmethod
     def get_controller(wf_ex, wf_spec=None):
         if not wf_spec:
             wf_spec = spec_parser.get_workflow_spec(wf_ex['spec'])
 
-        ctrl_cls = WorkflowController._get_class(wf_spec.get_type())
-
-        return ctrl_cls(wf_ex)
+        return WorkflowController._get_class(wf_spec.get_type())(wf_ex)

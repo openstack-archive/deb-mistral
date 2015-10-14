@@ -23,7 +23,17 @@ from mistral.db.v2.sqlalchemy import models
 from mistral import exceptions as exc
 from mistral.tests.unit.api import base
 
-WF = models.WorkflowDefinition()
+WF = models.WorkflowDefinition(
+    spec={
+        'version': '2.0',
+        'name': 'my_wf',
+        'tasks': {
+            'task1': {
+                'action': 'std.noop'
+            }
+        }
+    }
+)
 WF.update({'id': '1-2-3-4', 'name': 'my_wf'})
 
 TRIGGER = {
@@ -61,7 +71,7 @@ MOCK_UPDATED_TRIGGER = mock.MagicMock(return_value=UPDATED_TRIGGER_DB)
 MOCK_DELETE = mock.MagicMock(return_value=None)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
 MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
-MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntry())
+MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntryException())
 
 
 class TestCronTriggerController(base.FunctionalTest):
@@ -91,7 +101,7 @@ class TestCronTriggerController(base.FunctionalTest):
         self.assertEqual(resp.status_int, 201)
         self.assertDictEqual(TRIGGER, resp.json)
 
-        mock_mtd.assert_called_once()
+        self.assertEqual(1, mock_mtd.call_count)
 
         values = mock_mtd.call_args[0][0]
 

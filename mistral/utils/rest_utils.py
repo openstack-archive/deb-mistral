@@ -50,3 +50,39 @@ def wrap_pecan_controller_exception(func):
             pecan.response.translatable_error = excp
             pecan.abort(excp.http_code, six.text_type(excp))
     return wrapped
+
+
+def validate_query_params(limit, sort_keys, sort_dirs):
+    if limit is not None and limit <= 0:
+        raise exc.ClientSideError("Limit must be positive.")
+
+    if len(sort_keys) < len(sort_dirs):
+        raise exc.ClientSideError("Length of sort_keys must be equal or "
+                                  "greater than sort_dirs.")
+
+    if len(sort_keys) > len(sort_dirs):
+        sort_dirs.extend(['asc'] * (len(sort_keys) - len(sort_dirs)))
+
+    for sort_dir in sort_dirs:
+        if sort_dir not in ['asc', 'desc']:
+            raise exc.ClientSideError("Unknown sort direction, must be 'desc' "
+                                      "or 'asc'.")
+
+
+def validate_fields(fields, object_fields):
+    """Check for requested non-existent fields.
+
+    Check if the user requested non-existent fields.
+
+    :param fields: A list of fields requested by the user.
+    :param object_fields: A list of fields supported by the object.
+    """
+    if not fields:
+        return
+
+    invalid_fields = set(fields) - set(object_fields)
+
+    if invalid_fields:
+        raise exc.ClientSideError(
+            'Field(s) %s are invalid.' % ', '.join(invalid_fields)
+        )

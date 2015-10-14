@@ -18,16 +18,17 @@ import copy
 import inspect
 import re
 
+from oslo_log import log as logging
 import six
-import yaql
-from yaql import exceptions as yaql_exc
+from yaql.language import exceptions as yaql_exc
+from yaql.language import factory
 
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
-from mistral import yaql_utils
+from mistral.utils import yaql_utils
 
 
 LOG = logging.getLogger(__name__)
+YAQL_ENGINE = factory.YaqlFactory().create()
 
 
 class Evaluator(object):
@@ -75,7 +76,7 @@ class YAQLEvaluator(Evaluator):
         LOG.debug("Validating YAQL expression [expression='%s']", expression)
 
         try:
-            yaql.parse(expression)
+            YAQL_ENGINE(expression)
         except (yaql_exc.YaqlException, KeyError, ValueError, TypeError) as e:
             raise exc.YaqlEvaluationException(e.message)
 
@@ -85,11 +86,10 @@ class YAQLEvaluator(Evaluator):
                   % (expression, data_context))
 
         try:
-            result = yaql.parse(expression).evaluate(
-                data=data_context,
-                context=yaql_utils.create_yaql_context()
+            result = YAQL_ENGINE(expression).evaluate(
+                context=yaql_utils.get_yaql_context(data_context)
             )
-        except (KeyError, yaql_exc.YaqlException) as e:
+        except (yaql_exc.YaqlException, KeyError, ValueError, TypeError) as e:
             raise exc.YaqlEvaluationException(
                 "Can not evaluate YAQL expression: %s, data = %s; error:"
                 " %s" % (expression, data_context, str(e))

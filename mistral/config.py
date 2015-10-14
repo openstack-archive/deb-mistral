@@ -18,9 +18,11 @@
 Configuration options registration and useful routines.
 """
 
-from oslo.config import cfg
+import itertools
 
-from mistral.openstack.common import log
+from oslo_config import cfg
+from oslo_log import log
+
 from mistral import version
 
 
@@ -34,7 +36,10 @@ launch_opt = cfg.ListOpt(
 
 api_opts = [
     cfg.StrOpt('host', default='0.0.0.0', help='Mistral API server host'),
-    cfg.IntOpt('port', default=8989, help='Mistral API server port')
+    cfg.IntOpt('port', default=8989, help='Mistral API server port'),
+    cfg.BoolOpt('allow_action_execution_deletion', default=False,
+                help='Enables the ability to delete action_execution which '
+                     'has no relationship with workflows.'),
 ]
 
 pecan_opts = [
@@ -55,9 +60,9 @@ use_debugger = cfg.BoolOpt(
     "use-debugger",
     default=False,
     help='Enables debugger. Note that using this option changes how the '
-    'eventlet library is used to support async IO. This could result '
-    'in failures that do not occur under normal operation. '
-    'Use at your own risk.'
+         'eventlet library is used to support async IO. This could result '
+         'in failures that do not occur under normal operation. '
+         'Use at your own risk.'
 )
 
 engine_opts = [
@@ -67,10 +72,13 @@ engine_opts = [
                help='Name of the engine node. This can be an opaque '
                     'identifier. It is not necessarily a hostname, '
                     'FQDN, or IP address.'),
-    cfg.StrOpt('topic', default='engine',
+    cfg.StrOpt('topic', default='mistral_engine',
                help='The message topic that the engine listens on.'),
     cfg.StrOpt('version', default='1.0',
-               help='The version of the engine.')
+               help='The version of the engine.'),
+    cfg.IntOpt('execution_field_size_limit_kb', default=1024,
+               help='The default maximum size in KB of large text fields '
+                    'of runtime execution objects. Use -1 for no limit.'),
 ]
 
 executor_opts = [
@@ -78,68 +86,100 @@ executor_opts = [
                help='Name of the executor node. This can be an opaque '
                     'identifier. It is not necessarily a hostname, '
                     'FQDN, or IP address.'),
-    cfg.StrOpt('topic', default='executor',
+    cfg.StrOpt('topic', default='mistral_executor',
                help='The message topic that the executor listens on.'),
     cfg.StrOpt('version', default='1.0',
                help='The version of the executor.')
+]
+
+execution_expiration_policy_opts = [
+    cfg.IntOpt('evaluation_interval', default=None,
+               help='How often will the executions be evaluated '
+                    '(in minutes). For example for value 120 the interval '
+                    'will be 2 hours (every 2 hours).'),
+
+    cfg.IntOpt('older_than', default=None,
+               help='Evaluate from which time remove executions in minutes. '
+                    'For example when older_than = 60, remove all executions '
+                    'that finished a 60 minutes ago or more. '
+                    'Minimum value is 1. '
+                    'Note that only final state execution will remove '
+                    '( SUCCESS / ERROR ).')
 ]
 
 wf_trace_log_name_opt = cfg.StrOpt(
     'workflow_trace_log_name',
     default='workflow_trace',
     help='Logger name for pretty '
-    'workflow trace output.'
+         'workflow trace output.'
 )
+
+coordination_opts = [
+    cfg.StrOpt('backend_url',
+               default=None,
+               help='The backend URL to be used for coordination'),
+    cfg.FloatOpt('heartbeat_interval',
+                 default=5.0,
+                 help='Number of seconds between heartbeats for coordination.')
+]
 
 CONF = cfg.CONF
 
-CONF.register_opts(api_opts, group='api')
-CONF.register_opts(engine_opts, group='engine')
-CONF.register_opts(pecan_opts, group='pecan')
-CONF.register_opts(executor_opts, group='executor')
+API_GROUP = 'api'
+ENGINE_GROUP = 'engine'
+EXECUTOR_GROUP = 'executor'
+PECAN_GROUP = 'pecan'
+COORDINATION_GROUP = 'coordination'
+EXECUTION_EXPIRATION_POLICY_GROUP = 'execution_expiration_policy'
+
+CONF.register_opts(api_opts, group=API_GROUP)
+CONF.register_opts(engine_opts, group=ENGINE_GROUP)
+CONF.register_opts(pecan_opts, group=PECAN_GROUP)
+CONF.register_opts(executor_opts, group=EXECUTOR_GROUP)
+CONF.register_opts(execution_expiration_policy_opts,
+                   group=EXECUTION_EXPIRATION_POLICY_GROUP)
 CONF.register_opt(wf_trace_log_name_opt)
+CONF.register_opts(coordination_opts, group=COORDINATION_GROUP)
 
-CONF.register_cli_opt(use_debugger)
-CONF.register_cli_opt(launch_opt)
+CLI_OPTS = [
+    use_debugger,
+    launch_opt
+]
 
-CONF.import_opt('verbose', 'mistral.openstack.common.log')
-CONF.set_default('verbose', True)
-CONF.import_opt('debug', 'mistral.openstack.common.log')
-CONF.import_opt('log_dir', 'mistral.openstack.common.log')
-CONF.import_opt('log_file', 'mistral.openstack.common.log')
-CONF.import_opt('log_config_append', 'mistral.openstack.common.log')
-CONF.import_opt('log_format', 'mistral.openstack.common.log')
-CONF.import_opt('log_date_format', 'mistral.openstack.common.log')
-CONF.import_opt('use_syslog', 'mistral.openstack.common.log')
-CONF.import_opt('syslog_log_facility', 'mistral.openstack.common.log')
+CONF.register_cli_opts(CLI_OPTS)
 
-# Extend oslo default_log_levels to include some that are useful for mistral
-# some are in oslo logging already, this is just making sure it stays this
-# way.
-default_log_levels = cfg.CONF.default_log_levels
-
-logs_to_quieten = [
+_DEFAULT_LOG_LEVELS = [
+    'amqp=WARN',
     'sqlalchemy=WARN',
-    'oslo.messaging=INFO',
+    'oslo_messaging=INFO',
     'iso8601=WARN',
     'eventlet.wsgi.server=WARN',
     'stevedore=INFO',
-    'mistral.openstack.common.loopingcall=INFO',
-    'mistral.openstack.common.periodic_task=INFO',
-    'mistral.services.periodic=INFO'
+    'oslo_service.periodic_task=INFO',
+    'oslo_service.loopingcall=INFO',
+    'mistral.services.periodic=INFO',
+    'kazoo.client=WARN'
 ]
 
-for chatty in logs_to_quieten:
-    if chatty not in default_log_levels:
-        default_log_levels.append(chatty)
 
-cfg.set_defaults(
-    log.log_opts,
-    default_log_levels=default_log_levels
-)
+def list_opts():
+    return [
+        (API_GROUP, api_opts),
+        (ENGINE_GROUP, engine_opts),
+        (EXECUTOR_GROUP, executor_opts),
+        (PECAN_GROUP, pecan_opts),
+        (COORDINATION_GROUP, coordination_opts),
+        (EXECUTION_EXPIRATION_POLICY_GROUP, execution_expiration_policy_opts),
+        (None, itertools.chain(
+            CLI_OPTS,
+            [wf_trace_log_name_opt]
+        ))
+    ]
 
 
 def parse_args(args=None, usage=None, default_config_files=None):
+    log.set_defaults(default_log_levels=_DEFAULT_LOG_LEVELS)
+    log.register_options(CONF)
     CONF(
         args=args,
         project='mistral',

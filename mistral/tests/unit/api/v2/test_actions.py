@@ -21,6 +21,7 @@ from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
 from mistral import exceptions as exc
 from mistral.tests.unit.api import base
+from mistral import utils
 
 
 ACTION_DEFINITION = """
@@ -46,7 +47,7 @@ std.echo:
 """
 
 ACTION = {
-    'id': '123',
+    'id': '123e4567-e89b-12d3-a456-426655440000',
     'name': 'my_action',
     'is_system': False,
     'description': 'My super cool action.',
@@ -90,7 +91,7 @@ MOCK_UPDATED_ACTION = mock.MagicMock(return_value=UPDATED_ACTION_DB)
 MOCK_DELETE = mock.MagicMock(return_value=None)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
 MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
-MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntry())
+MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntryException())
 
 
 class TestActionsController(base.FunctionalTest):
@@ -121,6 +122,24 @@ class TestActionsController(base.FunctionalTest):
         self.assertEqual(resp.status_int, 200)
 
         self.assertEqual({"actions": [UPDATED_ACTION]}, resp.json)
+
+    @mock.patch.object(db_api, "load_action_definition", MOCK_ACTION)
+    @mock.patch.object(
+        db_api, "create_or_update_action_definition")
+    def test_put_public(self, mock_mtd):
+        mock_mtd.return_value = UPDATED_ACTION_DB
+
+        resp = self.app.put(
+            '/v2/actions?scope=public',
+            UPDATED_ACTION_DEFINITION,
+            headers={'Content-Type': 'text/plain'}
+        )
+
+        self.assertEqual(resp.status_int, 200)
+
+        self.assertEqual({"actions": [UPDATED_ACTION]}, resp.json)
+
+        self.assertEqual("public", mock_mtd.call_args[0][1]['scope'])
 
     @mock.patch.object(
         db_api, "create_or_update_action_definition", MOCK_NOT_FOUND
@@ -161,7 +180,7 @@ class TestActionsController(base.FunctionalTest):
         self.assertEqual(resp.status_int, 201)
         self.assertEqual({"actions": [ACTION]}, resp.json)
 
-        mock_mtd.assert_called_once()
+        self.assertEqual(1, mock_mtd.call_count)
 
         values = mock_mtd.call_args[0][0]
 
@@ -171,6 +190,35 @@ class TestActionsController(base.FunctionalTest):
 
         self.assertIsNotNone(spec)
         self.assertEqual(ACTION_DB.name, spec['name'])
+
+    @mock.patch.object(db_api, "create_action_definition")
+    def test_post_public(self, mock_mtd):
+        mock_mtd.return_value = ACTION_DB
+
+        resp = self.app.post(
+            '/v2/actions?scope=public',
+            ACTION_DEFINITION,
+            headers={'Content-Type': 'text/plain'}
+        )
+
+        self.assertEqual(resp.status_int, 201)
+        self.assertEqual({"actions": [ACTION]}, resp.json)
+
+        self.assertEqual("public", mock_mtd.call_args[0][0]['scope'])
+
+    @mock.patch.object(db_api, "create_action_definition")
+    def test_post_wrong_scope(self, mock_mtd):
+        mock_mtd.return_value = ACTION_DB
+
+        resp = self.app.post(
+            '/v2/actions?scope=unique',
+            ACTION_DEFINITION,
+            headers={'Content-Type': 'text/plain'},
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+        self.assertIn("Scope must be one of the following", resp.text)
 
     @mock.patch.object(db_api, "create_action_definition", MOCK_DUPLICATE)
     def test_post_dup(self):
@@ -220,3 +268,72 @@ class TestActionsController(base.FunctionalTest):
         self.assertEqual(resp.status_int, 200)
 
         self.assertEqual(len(resp.json['actions']), 0)
+
+    @mock.patch.object(db_api, "get_action_definitions", MOCK_ACTIONS)
+    def test_get_all_pagination(self):
+        resp = self.app.get(
+            '/v2/actions?limit=1&sort_keys=id,name')
+
+        self.assertEqual(resp.status_int, 200)
+        self.assertIn('next', resp.json)
+        self.assertEqual(len(resp.json['actions']), 1)
+        self.assertDictEqual(ACTION, resp.json['actions'][0])
+
+        param_dict = utils.get_dict_from_string(
+            resp.json['next'].split('?')[1],
+            delimiter='&'
+        )
+
+        expected_dict = {
+            'marker': '123e4567-e89b-12d3-a456-426655440000',
+            'limit': 1,
+            'sort_keys': 'id,name',
+            'sort_dirs': 'asc,asc'
+        }
+
+        self.assertTrue(
+            set(expected_dict.items()).issubset(set(param_dict.items()))
+        )
+
+    def test_get_all_pagination_limit_negative(self):
+        resp = self.app.get(
+            '/v2/actions?limit=-1&sort_keys=id,name&sort_dirs=asc,asc',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn("Limit must be positive", resp.body)
+
+    def test_get_all_pagination_limit_not_integer(self):
+        resp = self.app.get(
+            '/v2/actions?limit=1.1&sort_keys=id,name&sort_dirs=asc,asc',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn("unable to convert to int", resp.body)
+
+    def test_get_all_pagination_invalid_sort_dirs_length(self):
+        resp = self.app.get(
+            '/v2/actions?limit=1&sort_keys=id,name&sort_dirs=asc,asc,asc',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn(
+            "Length of sort_keys must be equal or greater than sort_dirs",
+            resp.body
+        )
+
+    def test_get_all_pagination_unknown_direction(self):
+        resp = self.app.get(
+            '/v2/actions?limit=1&sort_keys=id&sort_dirs=nonexist',
+            expect_errors=True
+        )
+
+        self.assertEqual(resp.status_int, 400)
+
+        self.assertIn("Unknown sort direction", resp.body)

@@ -20,13 +20,13 @@ from heatclient.v1 import client as heatclient
 from keystoneclient import httpclient
 from keystoneclient.v3 import client as keystoneclient
 from neutronclient.v2_0 import client as neutronclient
-from novaclient.v2 import client as novaclient
-from oslo.config import cfg
+from novaclient import client as novaclient
+from oslo_config import cfg
+from oslo_log import log
 
 from mistral.actions.openstack import base
 from mistral import context
 from mistral import exceptions as exc
-from mistral.openstack.common import log
 from mistral.utils.openstack import keystone as keystone_utils
 
 
@@ -36,7 +36,7 @@ CONF = cfg.CONF
 
 
 class NovaAction(base.OpenStackAction):
-    _client_class = novaclient.Client
+    _client_class = novaclient.get_client_class(2)
 
     def _get_client(self):
         ctx = context.ctx()

@@ -17,14 +17,14 @@ import datetime
 import uuid
 
 import mock
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 from oslo_messaging.rpc import client as rpc_client
 
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
 from mistral.engine import default_engine as d_eng
 from mistral import exceptions as exc
-from mistral.openstack.common import log as logging
 from mistral.services import workbooks as wb_service
 from mistral.tests import base
 from mistral.tests.unit.engine import base as eng_test_base
@@ -111,11 +111,13 @@ class DefaultEngineTest(base.DbTestCase):
         wf_ex = self.engine.start_workflow(
             'wb.wf',
             wf_input,
+            'my execution',
             task_name='task2'
         )
 
         self.assertIsNotNone(wf_ex)
         self.assertEqual(states.RUNNING, wf_ex.state)
+        self.assertEqual('my execution', wf_ex.description)
         self._assert_dict_contains_subset(wf_input, wf_ex.context)
         self.assertIn('__execution', wf_ex.context)
 
@@ -192,8 +194,8 @@ class DefaultEngineTest(base.DbTestCase):
 
     def test_start_workflow_with_adhoc_env(self):
         wf_input = {
-            'param1': '<% $.__env.key1 %>',
-            'param2': '<% $.__env.key2 %>'
+            'param1': '<% env().key1 %>',
+            'param2': '<% env().key2 %>'
         }
         env = ENVIRONMENT['variables']
 
@@ -213,8 +215,8 @@ class DefaultEngineTest(base.DbTestCase):
     @mock.patch.object(db_api, "get_environment", MOCK_ENVIRONMENT)
     def test_start_workflow_with_saved_env(self):
         wf_input = {
-            'param1': '<% $.__env.key1 %>',
-            'param2': '<% $.__env.key2 %>'
+            'param1': '<% env().key1 %>',
+            'param2': '<% env().key2 %>'
         }
         env = ENVIRONMENT['variables']
 
@@ -236,7 +238,7 @@ class DefaultEngineTest(base.DbTestCase):
         self.assertRaises(exc.NotFoundException,
                           self.engine.start_workflow,
                           'wb.wf',
-                          {'param1': '<% $.__env.key1 %>'},
+                          {'param1': '<% env().key1 %>'},
                           env='foo',
                           task_name='task2')
 
@@ -244,7 +246,7 @@ class DefaultEngineTest(base.DbTestCase):
         self.assertRaises(ValueError,
                           self.engine.start_workflow,
                           'wb.wf',
-                          {'param1': '<% $.__env.key1 %>'},
+                          {'param1': '<% env().key1 %>'},
                           env=True,
                           task_name='task2')
 
@@ -412,11 +414,9 @@ class DefaultEngineTest(base.DbTestCase):
         # Re-read execution to access related tasks.
         wf_ex = db_api.get_execution(wf_ex.id)
 
-        self.assertRaises(
-            exc.WorkflowException,
-            self.engine.stop_workflow,
-            wf_ex.id,
-            'PAUSE'
+        self.assertNotEqual(
+            'PAUSE',
+            self.engine.stop_workflow(wf_ex.id, 'PAUSE')
         )
 
     def test_resume_workflow(self):
@@ -435,5 +435,23 @@ class DefaultEngineWithTransportTest(eng_test_base.EngineTestCase):
 
         self.assertRaises(
             exc.InputException,
-            self.engine_client.start_workflow, 'some_wf', {}
+            self.engine_client.start_workflow,
+            'some_wf',
+            {},
+            'some_description'
         )
+
+    def test_engine_client_remote_error_arbitrary(self):
+        mocked = mock.Mock()
+        mocked.call.side_effect = KeyError('wrong key')
+        self.engine_client._client = mocked
+
+        exception = self.assertRaises(
+            exc.MistralException,
+            self.engine_client.start_workflow,
+            'some_wf',
+            {},
+            'some_description'
+        )
+
+        self.assertIn('KeyError: wrong key', exception.message)

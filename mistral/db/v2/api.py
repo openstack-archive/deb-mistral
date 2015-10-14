@@ -15,9 +15,8 @@
 
 import contextlib
 
-from oslo.db import api as db_api
-
-from mistral.openstack.common import log as logging
+from oslo_db import api as db_api
+from oslo_log import log as logging
 
 _BACKEND_MAPPING = {
     'sqlalchemy': 'mistral.db.v2.sqlalchemy.api',
@@ -108,13 +107,25 @@ def get_workflow_definition(name):
     return IMPL.get_workflow_definition(name)
 
 
+def get_workflow_definition_by_id(id):
+    return IMPL.get_workflow_definition_by_id(id)
+
+
 def load_workflow_definition(name):
     """Unlike get_workflow_definition this method is allowed to return None."""
     return IMPL.load_workflow_definition(name)
 
 
-def get_workflow_definitions():
-    return IMPL.get_workflow_definitions()
+def get_workflow_definitions(limit=None, marker=None, sort_keys=None,
+                             sort_dirs=None, fields=None, **kwargs):
+    return IMPL.get_workflow_definitions(
+        limit=limit,
+        marker=marker,
+        sort_keys=sort_keys,
+        sort_dirs=sort_dirs,
+        fields=fields,
+        **kwargs
+    )
 
 
 def create_workflow_definition(values):
@@ -139,6 +150,10 @@ def delete_workflow_definitions(**kwargs):
 
 # Action definitions.
 
+def get_action_definition_by_id(id):
+    return IMPL.get_action_definition_by_id(id)
+
+
 def get_action_definition(name):
     return IMPL.get_action_definition(name)
 
@@ -148,8 +163,15 @@ def load_action_definition(name):
     return IMPL.load_action_definition(name)
 
 
-def get_action_definitions(**kwargs):
-    return IMPL.get_action_definitions(**kwargs)
+def get_action_definitions(limit=None, marker=None, sort_keys=['name'],
+                           sort_dirs=None, **kwargs):
+    return IMPL.get_action_definitions(
+        limit=limit,
+        marker=marker,
+        sort_keys=sort_keys,
+        sort_dirs=sort_dirs,
+        **kwargs
+    )
 
 
 def create_action_definition(values):
@@ -261,8 +283,15 @@ def load_workflow_execution(name):
     return IMPL.load_workflow_execution(name)
 
 
-def get_workflow_executions(**kwargs):
-    return IMPL.get_workflow_executions(**kwargs)
+def get_workflow_executions(limit=None, marker=None, sort_keys=['created_at'],
+                            sort_dirs=None, **kwargs):
+    return IMPL.get_workflow_executions(
+        limit=limit,
+        marker=marker,
+        sort_keys=sort_keys,
+        sort_dirs=sort_dirs,
+        **kwargs
+    )
 
 
 def ensure_workflow_execution_exists(id):
@@ -326,6 +355,9 @@ def delete_task_executions(**kwargs):
 
 # Delayed calls.
 
+def get_delayed_calls_to_start(time):
+    return IMPL.get_delayed_calls_to_start(time)
+
 
 def create_delayed_call(values):
     return IMPL.create_delayed_call(values)
@@ -335,8 +367,12 @@ def delete_delayed_call(id):
     return IMPL.delete_delayed_call(id)
 
 
-def get_delayed_calls_to_start(time):
-    return IMPL.get_delayed_calls_to_start(time)
+def update_delayed_call(id, values, query_filter=None):
+    return IMPL.update_delayed_call(id, values, query_filter)
+
+
+def get_delayed_call(id):
+    return IMPL.get_delayed_call(id)
 
 
 # Cron triggers.
@@ -356,6 +392,10 @@ def get_cron_triggers(**kwargs):
 
 def get_next_cron_triggers(time):
     return IMPL.get_next_cron_triggers(time)
+
+
+def get_expired_executions(time):
+    return IMPL.get_expired_executions(time)
 
 
 def create_cron_trigger(values):

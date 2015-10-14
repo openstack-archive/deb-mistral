@@ -13,7 +13,6 @@
 #    limitations under the License.
 
 from tempest import test
-from tempest_lib import decorators
 
 from mistral.tests.functional import base
 
@@ -77,7 +76,6 @@ class OpenStackActionsTestsV2(base.TestCase):
 
         self.assertEqual(executed_task['state'], 'SUCCESS')
 
-    @decorators.skip_because(bug='1422725')
     @test.attr(type='openstack')
     def test_neutron_actions(self):
         wf_name = self.wb['name'] + '.neutron'
