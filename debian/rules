@@ -30,6 +30,7 @@ override_dh_auto_install:
 	done
 	PYTHONPATH=. oslo-config-generator --config-file tools/config/config-generator.mistral.conf \
 		--output-file $(CURDIR)/debian/mistral-common/usr/share/mistral-common/mistral.conf
+	sed -i 's/[ \t#]*auth_protocol[ \t]*=.*/auth_protocol = http/' $(CURDIR)/debian/mistral-common/usr/share/mistral-common/mistral.conf
 
 override_dh_install:
 	dh_install --fail-missing
