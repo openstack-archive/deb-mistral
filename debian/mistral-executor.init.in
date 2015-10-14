@@ -15,6 +15,6 @@
 
 DESC="OpenStack Mistral Executor"
 PROJECT_NAME=mistral
-NAME=${PROJECT_NAME}-api
+NAME=${PROJECT_NAME}-executor
 DAEMON=/usr/bin/mistral-server
 DAEMON_ARGS="--server executor"
