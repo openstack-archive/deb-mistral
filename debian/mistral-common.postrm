@@ -3,6 +3,25 @@
 set -e
 
 if [ "${1}" = "purge" ] ; then
+	if [ -f /usr/share/debconf/confmodule ] ; then
+		. /usr/share/debconf/confmodule
+
+		db_get mistral/configure_db || true
+		if [ "$RET" = "true" ]; then
+			if [ -f /usr/share/dbconfig-common/dpkg/postrm ]; then
+				. /usr/share/dbconfig-common/dpkg/postrm
+				dbc_go mistral-common $@
+			else
+				rm -f /etc/dbconfig-common/mistral-common.conf
+				if which ucf >/dev/null 2>&1; then
+					ucf --purge /etc/dbconfig-common/mistral-common.conf
+					ucfr --purge mistral-common /etc/dbconfig-common/mistral-common.conf
+				fi
+			fi
+		fi
+	fi
+
+
 	rm -f /etc/mistral/mistral.conf
 	rm -f /etc/mistral/logging.conf
 	rm -f /etc/mistral/wf_trace_logging.conf
