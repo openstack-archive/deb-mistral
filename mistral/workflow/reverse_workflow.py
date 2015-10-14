@@ -165,15 +165,3 @@ class ReverseWorkflowController(base.WorkflowController):
                     dep_t_specs.add(t_spec)
 
         return dep_t_specs
-
-    def _get_task_requires(self, task_spec):
-        requires = set(task_spec.get_requires())
-
-        task_defaults = self.wf_spec.get_task_defaults()
-
-        if task_defaults:
-            requires |= set(task_defaults.get_requires())
-
-        requires.discard(task_spec.get_name())
-
-        return list(requires)

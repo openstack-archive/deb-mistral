@@ -229,7 +229,6 @@
         "volumes_get_server_volumes": "volumes.get_server_volumes",
         "volumes_list": "volumes.list",
         "volumes_update_server_volume": "volumes.update_server_volume"
-
     },
     "glance": {
         "_comment": "It uses glanceclient.v2.",

@@ -223,13 +223,6 @@ class DirectWorkflowTaskSpec(TaskSpec):
         ]
     }
 
-    _on_clause_type = {
-        "oneOf": [
-            types.NONEMPTY_STRING,
-            types.UNIQUE_STRING_OR_YAQL_CONDITION_LIST
-        ]
-    }
-
     _direct_workflow_schema = {
         "type": "object",
         "properties": {
