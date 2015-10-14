@@ -1,4 +1,4 @@
-mistral (2015.1.0-1) unstable; urgency=medium
+mistral (1.0.0~rc1-1) unstable; urgency=medium
 
   * Initial release. (Closes: #790144)
 

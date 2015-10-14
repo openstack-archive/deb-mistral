@@ -4,7 +4,7 @@ PYTHONS:=$(shell pyversions -vr)
 
 include /usr/share/openstack-pkg-tools/pkgos.make
 
-export OSLO_PACKAGE_VERSION=$(VERSION)
+export OSLO_PACKAGE_VERSION=$(shell dpkg-parsechangelog | grep Version: | cut -d' ' -f2 | sed -e 's/^[[:digit:]]*://' -e 's/[-].*//' -e 's/~/.0/' | head -n 1)
 
 %:
 	dh $@  --with python2,systemd
@@ -23,9 +23,11 @@ override_dh_auto_install:
 		python$$pyvers setup.py install --install-layout=deb \
 			--root $(CURDIR)/debian/tmp; \
 	done
-	set -e ; for i in logging.conf mistral.conf wf_trace_logging.conf ; do \
+	set -e ; for i in logging.conf wf_trace_logging.conf ; do \
 		install -D -m 0664 etc/$$i.sample $(CURDIR)/debian/mistral-common/usr/share/mistral-common/$$i ; \
 	done
+	PYTHONPATH=. oslo-config-generator --config-file tools/config/config-generator.mistral.conf \
+		--output-file $(CURDIR)/debian/mistral-common/usr/share/mistral-common/mistral.conf
 
 override_dh_install:
 	dh_install --fail-missing
