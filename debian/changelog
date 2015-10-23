@@ -1,3 +1,9 @@
+mistral (1.0.0-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 23 Oct 2015 12:26:26 +0200
+
 mistral (1.0.0~rc1-1) unstable; urgency=medium
 
   * Initial release. (Closes: #790144)
