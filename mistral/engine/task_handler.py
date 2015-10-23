@@ -405,7 +405,7 @@ def _schedule_run_action(task_ex, task_spec, action_input, index):
         task_spec.get_target(),
         utils.merge_dicts(
             copy.deepcopy(action_input),
-            copy.copy(task_ex.in_context)
+            copy.deepcopy(task_ex.in_context)
         )
     )
 
@@ -466,7 +466,7 @@ def _schedule_run_workflow(task_ex, task_spec, wf_input, index):
     if 'env' in parent_wf_ex.params:
         wf_params['env'] = parent_wf_ex.params['env']
 
-    for k, v in wf_input.items():
+    for k, v in list(wf_input.items()):
         if k not in wf_spec.get_input():
             wf_params[k] = v
             del wf_input[k]
@@ -497,16 +497,19 @@ def _complete_task(task_ex, task_spec, state):
 
     _set_task_state(task_ex, state)
 
-    data_flow.publish_variables(
-        task_ex,
-        task_spec
-    )
+    try:
+        data_flow.publish_variables(
+            task_ex,
+            task_spec
+        )
+    except Exception as e:
+        _set_task_state(task_ex, states.ERROR, state_info=str(e))
 
     if not task_spec.get_keep_result():
         data_flow.destroy_task_result(task_ex)
 
 
-def _set_task_state(task_ex, state):
+def _set_task_state(task_ex, state, state_info=None):
     # TODO(rakhmerov): How do we log task result?
     wf_trace.info(
         task_ex.workflow_execution,
@@ -515,6 +518,9 @@ def _set_task_state(task_ex, state):
     )
 
     task_ex.state = state
+
+    if state_info:
+        task_ex.state_info = state_info
 
 
 def is_task_completed(task_ex, task_spec):

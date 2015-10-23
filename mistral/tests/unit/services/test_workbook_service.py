@@ -70,31 +70,32 @@ workflows:
 
 WORKBOOK_WF1_DEFINITION = """wf1:
 #Sample Comment 1
-    type: reverse
-    tags: [wf_test]
-    input:
-      - param1
-    output:
-      result: "{$.result}"
+  type: reverse
+  tags: [wf_test]
+  input:
+    - param1
+  output:
+    result: "{$.result}"
 
-    tasks:
-      task1:
-        action: std.echo output="{$.param1}"
-        publish:
-          result: "{$}"
+  tasks:
+    task1:
+      action: std.echo output="{$.param1}"
+      publish:
+        result: "{$}"
 """
 
 WORKBOOK_WF2_DEFINITION = """wf2:
-    type: direct
-    output:
-      result: "{$.result}"
+  type: direct
+  output:
+    result: "{$.result}"
 
-    tasks:
-      task1:
-        workflow: my_wb.wf1 param1='Hi' task_name='task1'
-        publish:
-          result: "The result of subworkflow is '{$.final_result}'"
+  tasks:
+    task1:
+      workflow: my_wb.wf1 param1='Hi' task_name='task1'
+      publish:
+        result: "The result of subworkflow is '{$.final_result}'"
 """
+
 
 UPDATED_WORKBOOK = """
 ---
@@ -136,29 +137,36 @@ workflows:
 """
 
 UPDATED_WORKBOOK_WF1_DEFINITION = """wf1:
-    type: direct
-    output:
-      result: "{$.result}"
+  type: direct
+  output:
+    result: "{$.result}"
 
-    tasks:
-      task1:
-        workflow: my_wb.wf2 param1='Hi' task_name='task1'
-        publish:
-          result: "The result of subworkflow is '{$.final_result}'"
+  tasks:
+    task1:
+      workflow: my_wb.wf2 param1='Hi' task_name='task1'
+      publish:
+        result: "The result of subworkflow is '{$.final_result}'"
 """
 
 UPDATED_WORKBOOK_WF2_DEFINITION = """wf2:
-    type: reverse
-    input:
-      - param1
-    output:
-      result: "{$.result}"
+  type: reverse
+  input:
+    - param1
+  output:
+    result: "{$.result}"
 
-    tasks:
-      task1:
-        action: std.echo output="{$.param1}"
-        publish:
-          result: "{$}"
+  tasks:
+    task1:
+      action: std.echo output="{$.param1}"
+      publish:
+        result: "{$}"
+"""
+
+
+ACTION_DEFINITION = """concat:
+  base: std.echo
+  base-input:
+    output: "{$.str1}{$.str2}"
 """
 
 
@@ -185,6 +193,7 @@ class WorkbookServiceTest(base.DbTestCase):
 
         self.assertEqual('concat', action_spec.get_name())
         self.assertEqual('std.echo', action_spec.get_base())
+        self.assertEqual(ACTION_DEFINITION, action_db.definition)
 
         db_wfs = db_api.get_workflow_definitions()
 

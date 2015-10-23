@@ -25,8 +25,8 @@ class OpenStackActionsTestsV2(base.TestCase):
     # TODO(akuznetsova): refactoring will be finished
 
     @classmethod
-    def setUpClass(cls):
-        super(OpenStackActionsTestsV2, cls).setUpClass()
+    def resource_setup(cls):
+        super(OpenStackActionsTestsV2, cls).resource_setup()
 
         _, cls.wb = cls.client.create_workbook(
             'openstack/action_collection_wb.yaml')
@@ -38,7 +38,7 @@ class OpenStackActionsTestsV2(base.TestCase):
         self.client.wait_execution_success(execution)
         executed_task = self.client.get_wf_tasks(wf_name)[-1]
 
-        self.assertEqual(executed_task['state'], 'SUCCESS')
+        self.assertEqual('SUCCESS', executed_task['state'])
 
     @test.attr(type='openstack')
     def test_keystone_actions(self):
@@ -47,7 +47,7 @@ class OpenStackActionsTestsV2(base.TestCase):
         self.client.wait_execution_success(execution)
         executed_task = self.client.get_wf_tasks(wf_name)[-1]
 
-        self.assertEqual(executed_task['state'], 'SUCCESS')
+        self.assertEqual('SUCCESS', executed_task['state'])
 
     @test.attr(type='openstack')
     def test_heat_actions(self):
@@ -56,7 +56,7 @@ class OpenStackActionsTestsV2(base.TestCase):
         self.client.wait_execution_success(execution)
         executed_task = self.client.get_wf_tasks(wf_name)[-1]
 
-        self.assertEqual(executed_task['state'], 'SUCCESS')
+        self.assertEqual('SUCCESS', executed_task['state'])
 
     @test.attr(type='openstack')
     def test_glance_actions(self):
@@ -65,7 +65,7 @@ class OpenStackActionsTestsV2(base.TestCase):
         self.client.wait_execution_success(execution)
         executed_task = self.client.get_wf_tasks(wf_name)[-1]
 
-        self.assertEqual(executed_task['state'], 'SUCCESS')
+        self.assertEqual('SUCCESS', executed_task['state'])
 
     @test.attr(type='openstack')
     def test_cinder_actions(self):
@@ -74,7 +74,7 @@ class OpenStackActionsTestsV2(base.TestCase):
         self.client.wait_execution_success(execution)
         executed_task = self.client.get_wf_tasks(wf_name)[-1]
 
-        self.assertEqual(executed_task['state'], 'SUCCESS')
+        self.assertEqual('SUCCESS', executed_task['state'])
 
     @test.attr(type='openstack')
     def test_neutron_actions(self):
@@ -83,4 +83,4 @@ class OpenStackActionsTestsV2(base.TestCase):
         self.client.wait_execution_success(execution)
         executed_task = self.client.get_wf_tasks(wf_name)[-1]
 
-        self.assertEqual(executed_task['state'], 'SUCCESS')
+        self.assertEqual('SUCCESS', executed_task['state'])

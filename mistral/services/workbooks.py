@@ -69,6 +69,7 @@ def _create_or_update_actions(wb_db, actions_spec):
                 'name': action_name,
                 'spec': action_spec.to_dict(),
                 'tags': action_spec.get_tags(),
+                'definition': _get_action_definition(wb_db, action_spec),
                 'description': action_spec.get_description(),
                 'is_system': False,
                 'input': ', '.join(input_list) if input_list else None,
@@ -111,7 +112,18 @@ def _get_workbook_values(wb_spec, definition, scope):
 
 
 def _get_wf_definition(wb_db, wf_spec):
-    wf_definition = spec_parser.get_workflow_definition(wb_db.definition,
-                                                        wf_spec.get_name())
+    wf_definition = spec_parser.get_workflow_definition(
+        wb_db.definition,
+        wf_spec.get_name()
+    )
 
     return wf_definition
+
+
+def _get_action_definition(wb_db, action_spec):
+    action_definition = spec_parser.get_action_definition(
+        wb_db.definition,
+        action_spec.get_name()
+    )
+
+    return action_definition

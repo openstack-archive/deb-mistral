@@ -699,21 +699,26 @@ Example:
 std.mistral_http
 ''''''''''''''''
 
-This actions works just like 'std.http' with the only exception: when
+This action works just like 'std.http' with the only exception: when
 sending a request it inserts the following HTTP headers:
 
+-  **Mistral-Workflow-Name** - Name of the workflow that the current
+   action execution is associated with.
 -  **Mistral-Execution-Id** - Identifier of the workflow execution this
    action is associated with.
--  **Mistral-Task-Id** - Identifier of the task instance this action is
-   associated with.
+-  **Mistral-Task-Id** - Identifier of the task execution this action
+   execution is associated with.
+-  **Mistral-Action-Execution-Id** - Identifier of the current action
+   execution.
 
 Using this action makes it possible to do any work in asynchronous
 manner triggered via HTTP protocol. That means that Mistral can send a
 request using 'std.mistral_http' and then any time later whatever
 system that received this request can notify Mistral back (using its
-public API) with the result of this action. Header **Mistral-Task-Id**
-is required for this operation because it is used a key to find
-corresponding task in Mistral to attach the result to.
+public API) with the result of this action. Header
+**Mistral-Action-Execution-Id** is required for this operation because
+it is used a key to find corresponding action execution in Mistral
+to attach the result to.
 
 std.email
 '''''''''
@@ -759,7 +764,8 @@ Input parameters:
 -  **host** - Host name that the command needs to be executed on.
    *Required*.
 -  **username** - User name to authenticate on the host.
--  **password** - User password to to authenticate on the host.
+-  **password** - User password to to authenticate on the host. *Optional.*
+-  **private_key** - Private key string which will be used for authentication on remote host. *Optional.*
 
 **NOTE**: Authentication using key pairs is supported, key should be
 on Mistral Executor server machine.
@@ -789,8 +795,7 @@ Input parameters:
 dependencies and JS engine.** Currently Mistral uses only V8 Engine and
 its wrapper - PyV8. For installing it, do the next steps:
 
-1. Install required libraries - boost, g++, libtool, autoconf,
-subversion, libv8-legacy-dev: On Ubuntu::
+1. Install required libraries - boost, g++, libtool, autoconf, subversion, libv8-legacy-dev: On Ubuntu::
 
     sudo apt-get install libboost-all-dev g++ libtool autoconf libv8-legacy-dev subversion make
 

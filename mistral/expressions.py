@@ -78,7 +78,7 @@ class YAQLEvaluator(Evaluator):
         try:
             YAQL_ENGINE(expression)
         except (yaql_exc.YaqlException, KeyError, ValueError, TypeError) as e:
-            raise exc.YaqlEvaluationException(e.message)
+            raise exc.YaqlEvaluationException(getattr(e, 'message', e))
 
     @classmethod
     def evaluate(cls, expression, data_context):
@@ -193,7 +193,7 @@ def _evaluate_item(item, context):
 
 
 def evaluate_recursively(data, context):
-    data = copy.copy(data)
+    data = copy.deepcopy(data)
 
     if not context:
         return data
