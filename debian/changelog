@@ -1,6 +1,7 @@
 mistral (1.0.0-1) unstable; urgency=medium
 
   * New upstream release.
+  * rm -rf /var/lib/mistral on purge (Closes: #802643).
 
  -- Thomas Goirand <zigo@debian.org>  Fri, 23 Oct 2015 12:26:26 +0200
 

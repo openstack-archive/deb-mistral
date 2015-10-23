@@ -27,6 +27,7 @@ if [ "${1}" = "purge" ] ; then
 	rm -f /etc/mistral/wf_trace_logging.conf
 	rm -rf /var/log/mistral
 	[ -d /etc/mistral ] && rmdir --ignore-fail-on-non-empty /etc/mistral
+	rm -rf /var/lib/mistral
 fi
 
 #DEBHELPER#
