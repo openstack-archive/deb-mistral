@@ -1,3 +1,9 @@
+mistral (1.0.0-3) unstable; urgency=medium
+
+  * Added q-text-as-data as depends for mistral-api.
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 03 Nov 2015 11:49:33 +0000
+
 mistral (1.0.0-2) unstable; urgency=medium
 
   * Rebuilt using openstack-pkg-tools 37 to use Keystone API v3.

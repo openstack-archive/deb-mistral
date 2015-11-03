@@ -189,6 +189,7 @@ Architecture: all
 Depends: adduser,
          debconf,
          mistral-common (= ${source:Version}),
+         q-text-as-data,
          ${misc:Depends},
          ${ostack-lsb-base},
          ${python:Depends},
