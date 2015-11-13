@@ -1,43 +1,38 @@
-# glance debconf portuguese messages
-# Copyright (C) 2012 the glance'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the glance package.
-# Pedro Ribeiro <p.m42.ribeiro@gmail.com>, 2012
+# Translation of mistral's debconf messages to european portuguese
+# Copyright (C) 2015 THE mistral'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the mistral package.
 #
+# Américo Monteiro <a_monteiro@gmx.com>, 2015.
 msgid ""
 msgstr ""
-"Project-Id-Version: glance\n"
+"Project-Id-Version: mistral 1.0.0~rc1-1\n"
 "Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
 "POT-Creation-Date: 2015-10-14 15:26+0000\n"
-"PO-Revision-Date: 2013-10-20 23:43+0100\n"
-"Last-Translator: Pedro Ribeiro <p.m42.ribeiro@gmail.com>\n"
-"Language-Team: Potuguese <traduz@debianpt.org>\n"
-"Language: \n"
+"PO-Revision-Date: 2015-10-22 23:20+0100\n"
+"Last-Translator: Américo Monteiro <a_monteiro@gmx.com>\n"
+"Language-Team: Portuguese <traduz@debianpt.org>\n"
+"Language: pt\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Lokalize 1.4\n"
 
 #. Type: boolean
 #. Description
 #: ../mistral-common.templates:2001
-#, fuzzy
-#| msgid "Set up a database for Glance?"
 msgid "Set up a database for Mistral?"
-msgstr "Configurar uma base de dados para o Glance?"
+msgstr "Configurar uma base de dados para o Mistral?"
 
 #. Type: boolean
 #. Description
 #: ../mistral-common.templates:2001
-#, fuzzy
-#| msgid ""
-#| "No database has been set up for glance-registry or glance-api to use. "
-#| "Before continuing, you should make sure you have the following "
-#| "information:"
 msgid ""
 "No database has been set up for Mistral to use. Before continuing, you "
 "should make sure you have the following information:"
 msgstr ""
-"Não foi definida nenhuma base de dados para ser usada pelo glance-registry "
-"ou glance-api. Antes de continuar, certifique-se que tem:"
+"Nenhuma base de dados foi configurada para o Mistral usar. Antes de "
+"continuar, você deve certificar-se que tem a seguinte informação:"
 
 #. Type: boolean
 #. Description
@@ -49,10 +44,11 @@ msgid ""
 "   machine);\n"
 " * a username and password to access the database."
 msgstr ""
-" * o tipo de base de dados que quer usar;\n"
-" * o nome do servidor (esse servidor deve aceitar ligações TCP a partir\n"
-"desta máquina);\n"
-" * o nome de utilizador e palavra passe para aceder à base de dados."
+" * o tipo de base de dados que deseja usar;\n"
+" * o nome de máquina do servidor da base de dados (esse servidor deve "
+"permitir ligações TCP a partir desta\n"
+"   máquina);\n"
+" * um nome de utilizador e palavra passe para aceder à base de dados."
 
 #. Type: boolean
 #. Description
@@ -61,43 +57,35 @@ msgid ""
 "If some of these requirements are missing, do not choose this option and run "
 "with regular SQLite support."
 msgstr ""
-"Se algum destes requisitos estiver em falta, rejeite esta opção e execute "
-"com o suporte SQLite normal."
+"Se alguns destes requerimentos estão em falta, não escolha esta opção e "
+"corra com o suporte SQLite regular."
 
 #. Type: boolean
 #. Description
 #: ../mistral-common.templates:2001
-#, fuzzy
-#| msgid ""
-#| "You can change this setting later on by running \"dpkg-reconfigure -plow "
-#| "glance-common\"."
 msgid ""
 "You can change this setting later on by running \"dpkg-reconfigure -plow "
 "mistral-common\"."
 msgstr ""
-"Pode mudar esta definição mais tarde ao executar \"dpkg-reconfigure -plow "
-"glance-common\"."
+"Você pode modificar estas definições mais tarde ao correr \"dpkg-reconfigure "
+"-plow mistral-common\"."
 
 #. Type: string
 #. Description
 #: ../mistral-common.templates:3001
 msgid "Authentication server hostname:"
-msgstr "Nome do servidor de autenticação:"
+msgstr "Nome de máquina do servidor de autenticação:"
 
 #. Type: string
 #. Description
 #: ../mistral-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the hostname of the authentication server for Glance. "
-#| "Typically this is also the hostname of the OpenStack Identity Service "
-#| "(Keystone)."
 msgid ""
 "Please specify the hostname of the authentication server. Typically this is "
 "also the hostname of the OpenStack Identity Service (Keystone)."
 msgstr ""
-"Indique o nome do seu servidor de autenticação para o Glance. Normalmente, é "
-"o nome do seu Serviço de Identidade OpenStack (Keystone)."
+"Por favor especifique o nome de máquina do servidor de autenticação. "
+"Tipicamente este é também o nome de máquina do Serviço de Identidade "
+"OpenStack (Keystone)."
 
 #. Type: string
 #. Description
@@ -110,7 +98,7 @@ msgstr ""
 #. proprietaire ("tenant")
 #: ../mistral-common.templates:4001
 msgid "Authentication server tenant name:"
-msgstr "Nome do 'tenant' do servidor de autenticação:"
+msgstr "Nome \"tenant\" do servidor de autenticação:"
 
 #. Type: string
 #. Description
@@ -123,39 +111,40 @@ msgstr "Nome do 'tenant' do servidor de autenticação:"
 #. proprietaire ("tenant")
 #: ../mistral-common.templates:4001
 msgid "Please specify the authentication server tenant name."
-msgstr "Indique, por favor, o nome do 'tenant' do servidor de autenticação."
+msgstr "Por favor especifique o nome \"tenant\" do servidor de autenticação."
 
 #. Type: string
 #. Description
 #: ../mistral-common.templates:5001
 msgid "Authentication server username:"
-msgstr "Nome de utilizador para o servidor de autenticação:"
+msgstr "Nome de utilizador do servidor de autenticação:"
 
 #. Type: string
 #. Description
 #: ../mistral-common.templates:5001
 msgid "Please specify the username to use with the authentication server."
 msgstr ""
-"Indique, por favor, o nome de utilizador para o servidor de autenticação."
+"Por favor especifique o nome de utilizador a usar com o servidor de "
+"autenticação."
 
 #. Type: password
 #. Description
 #: ../mistral-common.templates:6001
 msgid "Authentication server password:"
-msgstr "Palavra chave do servidor de autenticação:"
+msgstr "Palavra passe do servidor de autenticação:"
 
 #. Type: password
 #. Description
 #: ../mistral-common.templates:6001
 msgid "Please specify the password to use with the authentication server."
 msgstr ""
-"Indique, por favor, a palavra-chave para usar no servidor de autenticação."
+"Por favor especifique a palavra passe a usar com o servidor de autenticação."
 
 #. Type: string
 #. Description
 #: ../mistral-common.templates:7001
 msgid "IP address of your RabbitMQ host:"
-msgstr "Endereço IP do seu servidor RabbitMQ:"
+msgstr "Endereço IP da sua máquina RabbitMQ:"
 
 #. Type: string
 #. Description
@@ -169,49 +158,48 @@ msgid ""
 "In order to interoperate with other components of OpenStack, this package "
 "needs to connect to a central RabbitMQ server."
 msgstr ""
-"Para inter-operar com outros componentes do OpenStack, este pacote necessita "
-"de ligar-se a um servidor central RabbitMQ."
+"De modo a interagir com outros componentes do OpenStack, este pacote precisa "
+"de ligar a um servidor RabbitMQ central."
 
 #. Type: string
 #. Description
 #: ../mistral-common.templates:7001
 msgid "Please specify the IP address of that server."
-msgstr "Indique, por favor, o endereço IP desse servidor."
+msgstr "Por favor especifique o endereço IP desse servidor."
 
 #. Type: string
 #. Description
 #: ../mistral-common.templates:8001
 msgid "Username for connection to the RabbitMQ server:"
-msgstr "Nome de utilizador para se ligar ao servidor RabbitMQ:"
+msgstr "Nome de utilizador para ligação ao servidor RabbitMQ:"
 
 #. Type: string
 #. Description
 #: ../mistral-common.templates:8001
 msgid "Please specify the username used to connect to the RabbitMQ server."
 msgstr ""
-"Por favor, indique o nome de utilizador para se ligar ao servidor RabbitMQ."
+"Por favor especifique o nome de utilizador a usar para ligação ao servidor "
+"RabbitMQ."
 
 #. Type: password
 #. Description
 #: ../mistral-common.templates:9001
 msgid "Password for connection to the RabbitMQ server:"
-msgstr "Palavra-chave para a ligação ao servidor RabbitMQ:"
+msgstr "Palavra passe para ligação ao servidor RabbitMQ:"
 
 #. Type: password
 #. Description
 #: ../mistral-common.templates:9001
 msgid "Please specify the password used to connect to the RabbitMQ server."
 msgstr ""
-"Indique, por favor, a palavra-passe usada para a ligação ao servidor "
+"Por favor especifique a palavra passe a usar para ligação ao servidor "
 "RabbitMQ."
 
 #. Type: boolean
 #. Description
 #: ../mistral-api.templates:2001
-#, fuzzy
-#| msgid "Register Glance in the Keystone endpoint catalog?"
 msgid "Register Mistral in the Keystone endpoint catalog?"
-msgstr "Registar o Glance no catálogo de pontos finais do Keystone?"
+msgstr "Registar o Mistral no catálogo de \"endpoint\" do Keystone?"
 
 #. Type: boolean
 #. Description
@@ -221,9 +209,9 @@ msgid ""
 "accessible. This is done using \"keystone service-create\" and \"keystone "
 "endpoint-create\". This can be done automatically now."
 msgstr ""
-"Cada serviço Openstack (cada API) deve estar registado para que seja "
-"acessível. Isto é feito com \"keystone service-create\" e \"keystone "
-"endpoint-create\". Pode correr estes comandos agora."
+"Cada serviço do OpenStack (cada API) deve ser registado de modo a ser "
+"acessível. Isto é feito usado \"keystone service-create\" e \"keystone "
+"endpoint-create\". Isto pode ser feito automaticamente agora."
 
 #. Type: boolean
 #. Description
@@ -232,64 +220,54 @@ msgid ""
 "Note that you will need to have an up and running Keystone server on which "
 "to connect using the Keystone authentication token."
 msgstr ""
-"Note que irá necessitar de ter um servidor keystone a correr e pronto para "
-"receber ligações autenticadas com o token de autenticação Keystone."
+"Note que irá precisar de ter um servidor Keystone a funcionar no qual ligar "
+"usando o sinal de autenticação do Keystone."
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:3001
 msgid "Keystone server IP address:"
-msgstr "Endereço IP do keystone:"
+msgstr "Endereço IP do servidor do Keystone:"
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please enter the IP address of the Keystone server, so that glance-api "
-#| "can contact Keystone to do the Glance service and endpoint creation."
 msgid ""
 "Please enter the IP address of the Keystone server, so that mistral-api can "
 "contact Keystone to do the Mistral service and endpoint creation."
 msgstr ""
-"Indique o endereço IP do seu servidor keystone, de modo a que o glance-api "
-"possa contactar o Keystone para criar o serviço e ponto final Glance."
+"Por favor indique o endereço IP do servidor Keystone, para que o mistral-api "
+"possa contactar o Keystone para fazer o serviço Mistral e a criação do "
+"\"endpoint\"."
 
 #. Type: password
 #. Description
 #: ../mistral-api.templates:4001
 msgid "Keystone authentication token:"
-msgstr "Token de Autenticação Keystone:"
+msgstr "Sinal de autenticação do Keystone:"
 
 #. Type: password
 #. Description
 #: ../mistral-api.templates:4001
-#, fuzzy
-#| msgid ""
-#| "To configure its endpoint in Keystone, glance-api needs the Keystone "
-#| "authentication token."
 msgid ""
 "To configure its endpoint in Keystone, mistral-api needs the Keystone "
 "authentication token."
 msgstr ""
-"Para configurar o seu ponto final no Keystone, o glance-api precisa do token "
-"de autenticação do Keystone."
+"Para configurar o seu endpoint no Keystone, o mistral-api precisa do "
+"sinal de autenticação do Keystone."
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:5001
-#, fuzzy
-#| msgid "Glance endpoint IP address:"
 msgid "Mistral endpoint IP address:"
-msgstr "Endereço IP do ponto final Glance:"
+msgstr "Endereço IP endpoint do Mistral:"
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:5001
-#, fuzzy
-#| msgid "Please enter the IP address that will be used to contact Glance."
 msgid "Please enter the IP address that will be used to contact Mistral."
-msgstr "Indique o endereço IP que irá ser usado para contactar o Glance."
+msgstr ""
+"Por favor indique o endereço IP que será usado para contactar o Mistral."
 
 #. Type: string
 #. Description
@@ -299,8 +277,8 @@ msgid ""
 "service, so if you are installing a public cloud, this should be a public IP "
 "address."
 msgstr ""
-"Este endereço IP deve ser acessível a partir dos clientes que irão usar este "
-"serviço, portanto se está a instalar uma cloud pública, este deve ser um "
+"Este endereço IP deve ser acessível a partir dos clientes que vão usar este "
+"serviço, portanto se está a instalar uma \"cloud\" pública, este deve ser um "
 "endereço IP público."
 
 #. Type: string
@@ -317,36 +295,6 @@ msgid ""
 "location. Please enter the zone that you wish to use when registering the "
 "endpoint."
 msgstr ""
-"O Openstack pode ser usado com zonas de disponibilidade, com cada região a "
-"representar uma localização. Por favor, indique a zona que quer usar ao "
-"registar um ponto final."
-
-#~ msgid "keystone"
-#~ msgstr "keystone"
-
-#~ msgid "caching"
-#~ msgstr "caching"
-
-#~ msgid "keystone+caching"
-#~ msgstr "keystone+caching"
-
-#~ msgid "cachemanagement"
-#~ msgstr "cachemanagement"
-
-#~ msgid "keystone+cachemanagement"
-#~ msgstr "keystone+cachemanagement"
-
-#~ msgid "Pipeline flavor:"
-#~ msgstr "Tipo de pipeline:"
-
-#~ msgid "Please specify the flavor of the pipeline to be used by Glance."
-#~ msgstr "Por favor indique o tipo de pipeline a ser utilizado pelo Glance."
-
-#~ msgid ""
-#~ "If you use the OpenStack Identity Service (Keystone), you might want to "
-#~ "select \"keystone\". If you don't use this service, you can safely choose "
-#~ "\"caching\" only."
-#~ msgstr ""
-#~ "Se usar o Serviço de Identidade OpenStack (Keystone), pode querer "
-#~ "escolher \"keystone\". Se não usar este serviço, apenas pode escolher com "
-#~ "segurança \"caching\"."
+"O OpenStack suporta usar zonas de disponibilidade, com cada região a "
+"representar um local. Por favor indique a zona que deseja usar ao registar o "
+"endpoint."
