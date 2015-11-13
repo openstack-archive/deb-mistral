@@ -1,3 +1,9 @@
+mistral (1.0.0-4) unstable; urgency=medium
+
+  * Import .po files from Glance (Closes: #802891).
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 13 Nov 2015 09:49:52 +0100
+
 mistral (1.0.0-3) unstable; urgency=medium
 
   * Added q-text-as-data as depends for mistral-api.

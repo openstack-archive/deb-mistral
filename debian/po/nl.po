@@ -1,0 +1,363 @@
+# Dutch translation of glance debconf templates.
+# Copyright (C) 2012 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the glance package.
+# Jeroen Schot <schot@a-eskwadraat.nl>, 2012.
+# Frans Spiesschaert <Frans.Spiesschaert@yucom.be>, 2014.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: glance 2012.1~e3-4\n"
+"Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
+"POT-Creation-Date: 2015-10-14 15:26+0000\n"
+"PO-Revision-Date: 2014-09-26 22:55+0200\n"
+"Last-Translator: Frans Spiesschaert <Frans.Spiesschaert@yucom.be>\n"
+"Language-Team: Debian Dutch l10n Team <debian-l10n-dutch@lists.debian.org>\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+#, fuzzy
+#| msgid "Set up a database for Glance?"
+msgid "Set up a database for Mistral?"
+msgstr "Een database voor Glance opzetten?"
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+#, fuzzy
+#| msgid ""
+#| "No database has been set up for glance-registry or glance-api to use. "
+#| "Before continuing, you should make sure you have the following "
+#| "information:"
+msgid ""
+"No database has been set up for Mistral to use. Before continuing, you "
+"should make sure you have the following information:"
+msgstr ""
+"Er werd geen database opgezet voor het register van Glance noch voor de API "
+"van Glance. Voor u doorgaat moet u beschikken over de volgende informatie:"
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+msgid ""
+" * the type of database that you want to use;\n"
+" * the database server hostname (that server must allow TCP connections from "
+"this\n"
+"   machine);\n"
+" * a username and password to access the database."
+msgstr ""
+" * het type database dat u wenst te gebruiken;\n"
+" * de computernaam van de databeseserver (die server moet\n"
+"   TCP-verbindingen vanaf deze computer accepteren);\n"
+" * een gebruikersnaam en wachtwoord voor toegang tot de database."
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+msgid ""
+"If some of these requirements are missing, do not choose this option and run "
+"with regular SQLite support."
+msgstr ""
+"Indien sommige van deze gegevens ontbreken, moet u deze optie niet kiezen en "
+"de toepassing gebruiken met gewone SQLite-ondersteuning."
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+#, fuzzy
+#| msgid ""
+#| "You can change this setting later on by running \"dpkg-reconfigure -plow "
+#| "glance-common\"."
+msgid ""
+"You can change this setting later on by running \"dpkg-reconfigure -plow "
+"mistral-common\"."
+msgstr ""
+"U kunt deze instelling later wijzigen met het commando \"dpkg-reconfigure -"
+"plow glance-common\"."
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:3001
+msgid "Authentication server hostname:"
+msgstr "Computernaam van de authenticatieserver:"
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Please specify the hostname of the authentication server for Glance. "
+#| "Typically this is also the hostname of the OpenStack Identity Service "
+#| "(Keystone)."
+msgid ""
+"Please specify the hostname of the authentication server. Typically this is "
+"also the hostname of the OpenStack Identity Service (Keystone)."
+msgstr ""
+"Geef de computernaam van de authenticatieserver voor Glance. Meestal is dit "
+"ook de computernaam van de OpenStack identiteitsserver (Keystone)."
+
+#. Type: string
+#. Description
+#. Translators: a "tenant" in OpenStack world is
+#. an entity that contains one or more username/password couples.
+#. It's typically the tenant that will be used for billing. Having more than one
+#. username/password is very helpful in larger organization.
+#. You're advised to either keep "tenant" without translating it
+#. or keep it aside with your translation. Example for French:
+#. proprietaire ("tenant")
+#: ../mistral-common.templates:4001
+msgid "Authentication server tenant name:"
+msgstr "Naam van de clientruimte (tenant) op de authenticatieserver:"
+
+#. Type: string
+#. Description
+#. Translators: a "tenant" in OpenStack world is
+#. an entity that contains one or more username/password couples.
+#. It's typically the tenant that will be used for billing. Having more than one
+#. username/password is very helpful in larger organization.
+#. You're advised to either keep "tenant" without translating it
+#. or keep it aside with your translation. Example for French:
+#. proprietaire ("tenant")
+#: ../mistral-common.templates:4001
+msgid "Please specify the authentication server tenant name."
+msgstr ""
+"Gelieve de naam te vermelden van de clientruimte (tenant) op de "
+"authenticatieserver"
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:5001
+msgid "Authentication server username:"
+msgstr "Gebruikersnaam voor de authenticatieserver:"
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:5001
+msgid "Please specify the username to use with the authentication server."
+msgstr "Geef de gebruikersnaam op voor de authenticatieserver."
+
+#. Type: password
+#. Description
+#: ../mistral-common.templates:6001
+msgid "Authentication server password:"
+msgstr "Wachtwoord voor de authenticatieserver:"
+
+#. Type: password
+#. Description
+#: ../mistral-common.templates:6001
+msgid "Please specify the password to use with the authentication server."
+msgstr "Geef het wachtwoord op voor de authenticatieserver."
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:7001
+msgid "IP address of your RabbitMQ host:"
+msgstr "IP-adres van uw RabbitMQ-computer:"
+
+#. Type: string
+#. Description
+#. Type: string
+#. Description
+#. Type: password
+#. Description
+#: ../mistral-common.templates:7001 ../mistral-common.templates:8001
+#: ../mistral-common.templates:9001
+msgid ""
+"In order to interoperate with other components of OpenStack, this package "
+"needs to connect to a central RabbitMQ server."
+msgstr ""
+"Om te kunnen samenwerken met andere componenten van OpenStack, moet dit "
+"pakket verbinding kunnen maken met een centrale RabbitMQ-server."
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:7001
+msgid "Please specify the IP address of that server."
+msgstr "Geef heet IP-adres op van die server."
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:8001
+msgid "Username for connection to the RabbitMQ server:"
+msgstr "Gebruikersnaam voor de verbinding met de RabbitMQ-server:"
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:8001
+msgid "Please specify the username used to connect to the RabbitMQ server."
+msgstr ""
+"Geef de gebruikersnaam op die u nodig heeft om verbinding te maken met de "
+"RabbitMQ-server."
+
+#. Type: password
+#. Description
+#: ../mistral-common.templates:9001
+msgid "Password for connection to the RabbitMQ server:"
+msgstr "Wachtwoord voor de verbinding met de RabbitMQ-server:"
+
+#. Type: password
+#. Description
+#: ../mistral-common.templates:9001
+msgid "Please specify the password used to connect to the RabbitMQ server."
+msgstr ""
+"Gelieve het wachtwoord te geven dat u nodig heeft om verbinding te maken met "
+"de RabbitMQ-server."
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+#, fuzzy
+#| msgid "Register Glance in the Keystone endpoint catalog?"
+msgid "Register Mistral in the Keystone endpoint catalog?"
+msgstr "Glance registreren in de catalogus van toegangspunten van keystone?"
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+msgid ""
+"Each OpenStack service (each API) should be registered in order to be "
+"accessible. This is done using \"keystone service-create\" and \"keystone "
+"endpoint-create\". This can be done automatically now."
+msgstr ""
+"Elke OpenStackdienst (elke API) moet geregistreerd worden om toegankelijk te "
+"zijn. Dit gebeurt aan de hand van \"keystone service-create\" en \"keystone "
+"endpoint-create\". Dit kan nu automatisch gedaan worden."
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+msgid ""
+"Note that you will need to have an up and running Keystone server on which "
+"to connect using the Keystone authentication token."
+msgstr ""
+"Merk op dat u hiervoor een volledig werkende keystone-server nodig heeft, "
+"waarmee een verbinding gemaakt wordt met behulp van het authenticatiebewijs "
+"voor Keystone."
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:3001
+msgid "Keystone server IP address:"
+msgstr "IP-adres van de Keystone-server:"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Please enter the IP address of the Keystone server, so that glance-api "
+#| "can contact Keystone to do the Glance service and endpoint creation."
+msgid ""
+"Please enter the IP address of the Keystone server, so that mistral-api can "
+"contact Keystone to do the Mistral service and endpoint creation."
+msgstr ""
+"Gelieve het IP-adres van de Keystone-server op te geven, zodat glance-api "
+"met Keystone kan verbinden om de Glance-service en het troegangspunt aan te "
+"maken."
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:4001
+msgid "Keystone authentication token:"
+msgstr "Authenticatiebewijs voor Keystone:"
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:4001
+#, fuzzy
+#| msgid ""
+#| "To configure its endpoint in Keystone, glance-api needs the Keystone "
+#| "authentication token."
+msgid ""
+"To configure its endpoint in Keystone, mistral-api needs the Keystone "
+"authentication token."
+msgstr ""
+"Om zijn toegangspunt te kunnen aanmaken in Keystone, heeft glance-api het "
+"authenticatiebewijs voor Keystone nodig."
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+#, fuzzy
+#| msgid "Glance endpoint IP address:"
+msgid "Mistral endpoint IP address:"
+msgstr "IP-adres van het toegangspunt voor Glance:"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+#, fuzzy
+#| msgid "Please enter the IP address that will be used to contact Glance."
+msgid "Please enter the IP address that will be used to contact Mistral."
+msgstr ""
+"Gelieve het IP-adres in te voeren dat gebruikt zal worden om contact te "
+"maken met Glance."
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+msgid ""
+"This IP address should be accessible from the clients that will use this "
+"service, so if you are installing a public cloud, this should be a public IP "
+"address."
+msgstr ""
+"Dit IP-adres moet bereikbaar zijn voor de clients die van deze service "
+"gebruik zullen maken. Indien u een openbare cloud installeert, moet dit dus "
+"een algemeen bereikbaar IP-adres zijn."
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:6001
+msgid "Name of the region to register:"
+msgstr "Naam van de te registreren regio:"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:6001
+msgid ""
+"OpenStack supports using availability zones, with each region representing a "
+"location. Please enter the zone that you wish to use when registering the "
+"endpoint."
+msgstr ""
+"Openstack ondersteunt het gebruik van zones van beschikbaarheid, waarbij "
+"elke regio een locatie vertegenwoordigt. Geef aan welke zone u wenst te "
+"gebruiken bij het registreren van het toegangspunt."
+
+#~ msgid "keystone"
+#~ msgstr "keystone"
+
+#~ msgid "caching"
+#~ msgstr "opgeslagen in cache"
+
+#~ msgid "keystone+caching"
+#~ msgstr "keystone + opgeslagen in cache"
+
+#~ msgid "cachemanagement"
+#~ msgstr "cachebeheer"
+
+#~ msgid "keystone+cachemanagement"
+#~ msgstr "keystone + cachebeheer"
+
+#~ msgid "Pipeline flavor:"
+#~ msgstr "Soort pijp:"
+
+#~| msgid "Please specify the flavor of pipeline to be used by Glance."
+#~ msgid "Please specify the flavor of the pipeline to be used by Glance."
+#~ msgstr "Gelieve te specificeren welk soort pijp Glance moet gebruiken."
+
+#~ msgid ""
+#~ "If you use the OpenStack Identity Service (Keystone), you might want to "
+#~ "select \"keystone\". If you don't use this service, you can safely choose "
+#~ "\"caching\" only."
+#~ msgstr ""
+#~ "Als u de OpenStack identiteitsserver (Keystone) gebruikt wilt u hier "
+#~ "wellicht \"keystone\" kiezen. Als u deze dienst niet gebruikt kunt u "
+#~ "gewoon \"caching\" kiezen."
+
+#~ msgid "Auth server URL:"
+#~ msgstr "URL van de auth-server:"

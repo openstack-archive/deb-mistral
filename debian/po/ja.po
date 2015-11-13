@@ -1,0 +1,370 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# victory <victory.deb@gmail.com>, 2012.
+# 
+msgid ""
+msgstr ""
+"Project-Id-Version: glance\n"
+"Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
+"POT-Creation-Date: 2015-10-14 15:26+0000\n"
+"PO-Revision-Date: 2012-11-10 23:28+0900\n"
+"Last-Translator: victory <victory.deb@gmail.com>\n"
+"Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+#, fuzzy
+#| msgid "Set up a database for glance?"
+msgid "Set up a database for Mistral?"
+msgstr "glance 用のデータベースを用意しますか?"
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+#, fuzzy
+#| msgid ""
+#| "No database has been set up for glance-registry or glance-api to use. "
+#| "Before continuing, you should make sure you have:"
+msgid ""
+"No database has been set up for Mistral to use. Before continuing, you "
+"should make sure you have the following information:"
+msgstr ""
+"glance-registry または glance-api で利用するデータベースが用意されていませ"
+"ん。続ける前に以下の情報が揃っていることを確認してください:"
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+#, fuzzy
+#| msgid ""
+#| " - the server host name (that server must allow TCP connections from "
+#| "this\n"
+#| "   machine);\n"
+#| " - a username and password to access the database.\n"
+#| " - A database type that you want to use."
+msgid ""
+" * the type of database that you want to use;\n"
+" * the database server hostname (that server must allow TCP connections from "
+"this\n"
+"   machine);\n"
+" * a username and password to access the database."
+msgstr ""
+" - サーバのホスト名 (このサーバはこのマシンからの\n"
+"   TCP 接続を許可しなければなりません)\n"
+" - データベースにアクセスするためのユーザ名とパスワード\n"
+" - 使いたいデータベースの種類"
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+#, fuzzy
+#| msgid ""
+#| "If some of these requirements are missing, reject this option and run "
+#| "with regular sqlite support."
+msgid ""
+"If some of these requirements are missing, do not choose this option and run "
+"with regular SQLite support."
+msgstr ""
+"必要な情報が欠けている場合このオプションを却下して標準の SQLite を利用しま"
+"す。"
+
+#. Type: boolean
+#. Description
+#: ../mistral-common.templates:2001
+#, fuzzy
+#| msgid ""
+#| "You can change this setting later on by running 'dpkg-reconfigure -plow "
+#| "glance-common'."
+msgid ""
+"You can change this setting later on by running \"dpkg-reconfigure -plow "
+"mistral-common\"."
+msgstr ""
+"この設定は後で「dpkg-reconfigure -plow glance-common」を実行することにより変"
+"更できます。"
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:3001
+#, fuzzy
+#| msgid "Auth server hostname:"
+msgid "Authentication server hostname:"
+msgstr "認証サーバのホスト名:"
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Please specify the URL of your Glance authentication server. Typically "
+#| "this is also the URL of your OpenStack Identity Service (Keystone)."
+msgid ""
+"Please specify the hostname of the authentication server. Typically this is "
+"also the hostname of the OpenStack Identity Service (Keystone)."
+msgstr ""
+"Glance 認証サーバの URL を指定してください。これは通常 OpenStack Identity "
+"Service (Keystone) の URL にもなります。"
+
+#. Type: string
+#. Description
+#. Translators: a "tenant" in OpenStack world is
+#. an entity that contains one or more username/password couples.
+#. It's typically the tenant that will be used for billing. Having more than one
+#. username/password is very helpful in larger organization.
+#. You're advised to either keep "tenant" without translating it
+#. or keep it aside with your translation. Example for French:
+#. proprietaire ("tenant")
+#: ../mistral-common.templates:4001
+#, fuzzy
+#| msgid "Auth server tenant name:"
+msgid "Authentication server tenant name:"
+msgstr "認証サーバの管理用アカウント (tenant) 名"
+
+#. Type: string
+#. Description
+#. Translators: a "tenant" in OpenStack world is
+#. an entity that contains one or more username/password couples.
+#. It's typically the tenant that will be used for billing. Having more than one
+#. username/password is very helpful in larger organization.
+#. You're advised to either keep "tenant" without translating it
+#. or keep it aside with your translation. Example for French:
+#. proprietaire ("tenant")
+#: ../mistral-common.templates:4001
+msgid "Please specify the authentication server tenant name."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:5001
+#, fuzzy
+#| msgid "Auth server username:"
+msgid "Authentication server username:"
+msgstr "認証サーバのユーザ名:"
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:5001
+msgid "Please specify the username to use with the authentication server."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-common.templates:6001
+#, fuzzy
+#| msgid "Auth server password:"
+msgid "Authentication server password:"
+msgstr "認証サーバのパスワード:"
+
+#. Type: password
+#. Description
+#: ../mistral-common.templates:6001
+msgid "Please specify the password to use with the authentication server."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:7001
+msgid "IP address of your RabbitMQ host:"
+msgstr ""
+
+#. Type: string
+#. Description
+#. Type: string
+#. Description
+#. Type: password
+#. Description
+#: ../mistral-common.templates:7001 ../mistral-common.templates:8001
+#: ../mistral-common.templates:9001
+msgid ""
+"In order to interoperate with other components of OpenStack, this package "
+"needs to connect to a central RabbitMQ server."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:7001
+msgid "Please specify the IP address of that server."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:8001
+msgid "Username for connection to the RabbitMQ server:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-common.templates:8001
+msgid "Please specify the username used to connect to the RabbitMQ server."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-common.templates:9001
+msgid "Password for connection to the RabbitMQ server:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-common.templates:9001
+msgid "Please specify the password used to connect to the RabbitMQ server."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+#, fuzzy
+#| msgid "Register Glance in the keystone endpoint catalog?"
+msgid "Register Mistral in the Keystone endpoint catalog?"
+msgstr "Glance を Keystone の端末リストに登録しますか?"
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+#, fuzzy
+#| msgid ""
+#| "Each Openstack services (each API) should be registered in order to be "
+#| "accessible. This is done using \"keystone service-create\" and \"keystone "
+#| "endpoint-create\". Select if you want to run these commands now."
+msgid ""
+"Each OpenStack service (each API) should be registered in order to be "
+"accessible. This is done using \"keystone service-create\" and \"keystone "
+"endpoint-create\". This can be done automatically now."
+msgstr ""
+"OpenStack のサービスごと (API ごと) に、アクセスできるようにするため登録すべ"
+"きです。「keystone service-create」と「keystone endpoint-create」を使って登録"
+"することができます。ここで自動的に行うことができます。"
+
+#. Type: boolean
+#. Description
+#: ../mistral-api.templates:2001
+#, fuzzy
+#| msgid ""
+#| "Note that you will need to have an up and running keystone server on "
+#| "which to connect using the Keystone auth token."
+msgid ""
+"Note that you will need to have an up and running Keystone server on which "
+"to connect using the Keystone authentication token."
+msgstr ""
+"Keystone 認証文字列を使って接続する先の Keystone サーバが必要なことに注意して"
+"ください。"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:3001
+#, fuzzy
+#| msgid "Keystone IP address:"
+msgid "Keystone server IP address:"
+msgstr "Keystone の IP アドレス:"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:3001
+#, fuzzy
+#| msgid ""
+#| "Enter the IP address of your keystone server, so that glance-api can "
+#| "contact Keystone to do the Glance service and endpoint creation."
+msgid ""
+"Please enter the IP address of the Keystone server, so that mistral-api can "
+"contact Keystone to do the Mistral service and endpoint creation."
+msgstr ""
+"Keystone サーバの IP アドレスを入力してください。それにより glance-api は "
+"Keystone と通信し、Glance サービスや端末の作成ができるようになります。"
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:4001
+#, fuzzy
+#| msgid "Keystone Auth Token:"
+msgid "Keystone authentication token:"
+msgstr "Keystone 認証文字列:"
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:4001
+#, fuzzy
+#| msgid ""
+#| "To configure its endpoint in Keystone, glance-api needs the Keystone auth "
+#| "token."
+msgid ""
+"To configure its endpoint in Keystone, mistral-api needs the Keystone "
+"authentication token."
+msgstr ""
+"Keystone で端末を設定するには、glance-api は Keystone 認証文字列を必要としま"
+"す。"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+#, fuzzy
+#| msgid "Glance endpoint IP address:"
+msgid "Mistral endpoint IP address:"
+msgstr "Glance 端末の IP アドレス:"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+#, fuzzy
+#| msgid ""
+#| "Enter the IP address that will be used to contact Glance (eg: the Glance "
+#| "endpoint IP address)."
+msgid "Please enter the IP address that will be used to contact Mistral."
+msgstr ""
+"Glance への通信に利用する IP アドレス (例えば Glance 端末の IP アドレス) を入"
+"力してください。"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:5001
+msgid ""
+"This IP address should be accessible from the clients that will use this "
+"service, so if you are installing a public cloud, this should be a public IP "
+"address."
+msgstr ""
+"この IP アドレスはこのサービスを利用するクライアントからアクセスできないとい"
+"けないので、パブリッククラウドをインストールしている場合、これは公開 IP アド"
+"レスを使うようにしてください。"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:6001
+msgid "Name of the region to register:"
+msgstr "登録する領域の名前:"
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:6001
+#, fuzzy
+#| msgid ""
+#| "Openstack can be used using availability zones, with each region "
+#| "representing a location. Please enter the zone that you wish to use when "
+#| "registering the endpoint."
+msgid ""
+"OpenStack supports using availability zones, with each region representing a "
+"location. Please enter the zone that you wish to use when registering the "
+"endpoint."
+msgstr ""
+"OpenStack は位置を示す各領域による利用可能区分を利用することができます。端末"
+"の登録時に利用したい区分を入力してください。"
+
+#~ msgid "Pipeline flavor:"
+#~ msgstr "パイプラインの種類:"
+
+#, fuzzy
+#~| msgid "Please specify the flavor of pipeline to be used by Glance."
+#~ msgid "Please specify the flavor of the pipeline to be used by Glance."
+#~ msgstr "Glance で利用するパイプラインの種類を指定してください。"
+
+#~ msgid ""
+#~ "If you use the OpenStack Identity Service (Keystone), you might want to "
+#~ "select \"keystone\". If you don't use this service, you can safely choose "
+#~ "\"caching\" only."
+#~ msgstr ""
+#~ "OpenStack Identity Service (Keystone) を利用する場合は「keystone」を選択す"
+#~ "ることもできます。このサービスを利用しない場合は安全に「caching」だけを選"
+#~ "択してください。"
