@@ -1,6 +1,7 @@
 mistral (2.0.0~b1-1) experimental; urgency=medium
 
   * New upstream release.
+  * Fixed (build-)depends for this release.
 
  -- Thomas Goirand <zigo@debian.org>  Thu, 10 Dec 2015 10:36:34 +0100
 
