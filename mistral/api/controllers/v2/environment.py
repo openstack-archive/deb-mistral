@@ -73,6 +73,7 @@ class EnvironmentController(rest.RestController):
     @wsme_pecan.wsexpose(Environments)
     def get_all(self):
         """Return all environments.
+
         Where project_id is the same as the requestor or
         project_id is different but the scope is public.
         """
@@ -102,7 +103,7 @@ class EnvironmentController(rest.RestController):
         LOG.info("Create environment [env=%s]" % env)
 
         self._validate_environment(
-            json.loads(wsme_pecan.pecan.request.body),
+            json.loads(wsme_pecan.pecan.request.body.decode()),
             ['name', 'description', 'variables']
         )
 
@@ -121,7 +122,7 @@ class EnvironmentController(rest.RestController):
 
         LOG.info("Update environment [name=%s, env=%s]" % (env.name, env))
 
-        definition = json.loads(wsme_pecan.pecan.request.body)
+        definition = json.loads(wsme_pecan.pecan.request.body.decode())
         definition.pop('name')
 
         self._validate_environment(

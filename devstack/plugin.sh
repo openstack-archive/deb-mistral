@@ -1,4 +1,11 @@
-# Setting configuration file for Mistral services
+# ``stack.sh`` calls the entry points in this order:
+#
+# install_mistral
+# install_python_mistralclient
+# configure_mistral
+# start_mistral
+# stop_mistral
+# cleanup_mistral
 
 # Save trace setting
 XTRACE=$(set +o | grep xtrace)
@@ -6,26 +13,6 @@ set -o xtrace
 
 # Defaults
 # --------
-
-# Set up default repos
-MISTRAL_REPO=${MISTRAL_REPO:-${GIT_BASE}/openstack/mistral.git}
-MISTRAL_BRANCH=${MISTRAL_BRANCH:-master}
-
-MISTRAL_PYTHONCLIENT_REPO=${MISTRAL_PYTHONCLIENT_REPO:-${GIT_BASE}/openstack/python-mistralclient.git}
-MISTRAL_PYTHONCLIENT_BRANCH=${MISTRAL_PYTHONCLIENT_BRANCH:-$MISTRAL_BRANCH}
-MISTRAL_PYTHONCLIENT_DIR=$DEST/python-mistralclient
-
-# Set up default directories
-MISTRAL_DIR=$DEST/mistral
-MISTRAL_CONF_DIR=${MISTRAL_CONF_DIR:-/etc/mistral}
-MISTRAL_CONF_FILE=${MISTRAL_CONF_DIR}/mistral.conf
-MISTRAL_DEBUG=${MISTRAL_DEBUG:-True}
-
-MISTRAL_SERVICE_HOST=${MISTRAL_SERVICE_HOST:-$SERVICE_HOST}
-MISTRAL_SERVICE_PORT=${MISTRAL_SERVICE_PORT:-8989}
-MISTRAL_SERVICE_PROTOCOL=${MISTRAL_SERVICE_PROTOCOL:-$SERVICE_PROTOCOL}
-
-MISTRAL_ADMIN_USER=${MISTRAL_ADMIN_USER:-mistral}
 
 # Support entry points installation of console scripts
 if [[ -d $MISTRAL_DIR/bin ]]; then
@@ -118,28 +105,33 @@ function init_mistral {
 
 # install_mistral - Collect source and prepare
 function install_mistral {
-    install_mistral_pythonclient
-
-    git_clone $MISTRAL_REPO $MISTRAL_DIR $MISTRAL_BRANCH
-
-    # setup_package function is used because Mistral requirements
-    # don't match with global-requirement.txt
-    # both functions (setup_develop and setup_package) are defined at:
-    # http://git.openstack.org/cgit/openstack-dev/devstack/tree/functions-common
-    setup_package $MISTRAL_DIR -e
+    setup_develop $MISTRAL_DIR -e
 
     # installing python-nose.
     real_install_package python-nose
+
+    if is_service_enabled horizon; then
+        _install_mistraldashboard
+    fi
+}
+
+
+function _install_mistraldashboard {
+    git_clone $MISTRAL_DASHBOARD_REPO $MISTRAL_DASHBOARD_DIR $MISTRAL_DASHBOARD_BRANCH
+    setup_develop $MISTRAL_DASHBOARD_DIR -e
+    ln -fs $MISTRAL_DASHBOARD_DIR/_50_mistral.py.example $HORIZON_DIR/openstack_dashboard/local/enabled/_50_mistral.py
 }
 
 
 function install_mistral_pythonclient {
-    git_clone $MISTRAL_PYTHONCLIENT_REPO $MISTRAL_PYTHONCLIENT_DIR $MISTRAL_PYTHONCLIENT_BRANCH
-    local tags=`git --git-dir=$MISTRAL_PYTHONCLIENT_DIR/.git tag -l | grep 2015`
-    if [ ! "$tags" = "" ]; then
-        git --git-dir=$MISTRAL_PYTHONCLIENT_DIR/.git tag -d $tags
+    if use_library_from_git "python-mistralclient"; then
+        git_clone $MISTRAL_PYTHONCLIENT_REPO $MISTRAL_PYTHONCLIENT_DIR $MISTRAL_PYTHONCLIENT_BRANCH
+        local tags=`git --git-dir=$MISTRAL_PYTHONCLIENT_DIR/.git tag -l | grep 2015`
+        if [ ! "$tags" = "" ]; then
+            git --git-dir=$MISTRAL_PYTHONCLIENT_DIR/.git tag -d $tags
+        fi
+        setup_develop $MISTRAL_PYTHONCLIENT_DIR -e
     fi
-    setup_package $MISTRAL_PYTHONCLIENT_DIR -e
 }
 
 
@@ -156,10 +148,23 @@ function stop_mistral {
 }
 
 
+function cleanup_mistral {
+    if is_service_enabled horizon; then
+        _mistral_cleanup_mistraldashboard
+    fi
+}
+
+
+function _mistral_cleanup_mistraldashboard {
+    rm -f $HORIZON_DIR/openstack_dashboard/local/enabled/_50_mistral.py
+}
+
+
 if is_service_enabled mistral; then
     if [[ "$1" == "stack" && "$2" == "install" ]]; then
         echo_summary "Installing mistral"
         install_mistral
+        install_mistral_pythonclient
     elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
         echo_summary "Configuring mistral"
         configure_mistral
@@ -171,7 +176,13 @@ if is_service_enabled mistral; then
     fi
 
     if [[ "$1" == "unstack" ]]; then
+        echo_summary "Shutting down mistral"
         stop_mistral
+    fi
+
+    if [[ "$1" == "clean" ]]; then
+        echo_summary "Cleaning mistral"
+        cleanup_mistral
     fi
 fi
 

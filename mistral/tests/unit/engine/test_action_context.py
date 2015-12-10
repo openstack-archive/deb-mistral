@@ -20,7 +20,7 @@ import requests
 from mistral.actions import std_actions
 from mistral.db.v2 import api as db_api
 from mistral.services import workbooks as wb_service
-from mistral.tests import base as test_base
+from mistral.tests.unit import base as test_base
 from mistral.tests.unit.engine import base
 from mistral.workflow import states
 
@@ -77,7 +77,8 @@ class ActionContextTest(base.EngineTestCase):
             'Mistral-Workflow-Name': wf_ex.workflow_name,
             'Mistral-Workflow-Execution-Id': wf_ex.id,
             'Mistral-Task-Id': task_ex.id,
-            'Mistral-Action-Execution-Id': action_ex.id
+            'Mistral-Action-Execution-Id': action_ex.id,
+            'Mistral-Callback-URL': '/v2/action_executions/%s' % action_ex.id
         }
 
         requests.request.assert_called_with(

@@ -20,7 +20,7 @@ import pecan
 import pecan.testing
 from webtest import app as webtest_app
 
-from mistral.tests import base
+from mistral.tests.unit import base
 
 # Disable authentication for functional tests.
 cfg.CONF.set_default('auth_enable', False, group='pecan')
@@ -29,9 +29,6 @@ __all__ = ['FunctionalTest']
 
 
 class FunctionalTest(base.DbTestCase):
-    """Used for functional tests where you need to test your
-    literal application and its integration with the framework.
-    """
 
     def setUp(self):
         super(FunctionalTest, self).setUp()

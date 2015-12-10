@@ -210,7 +210,7 @@ class TestExecutionsController(base.FunctionalTest):
             WF_EX_JSON
         )
 
-        self.assertIn('Bad response: 400', context.message)
+        self.assertIn('Bad response: 400', context.args[0])
 
     @mock.patch.object(db_api, 'delete_workflow_execution', MOCK_DELETE)
     def test_delete(self):
@@ -274,7 +274,7 @@ class TestExecutionsController(base.FunctionalTest):
 
         self.assertEqual(400, resp.status_int)
 
-        self.assertIn("Limit must be positive", resp.body)
+        self.assertIn("Limit must be positive", resp.body.decode())
 
     def test_get_all_pagination_limit_not_integer(self):
         resp = self.app.get(
@@ -284,7 +284,7 @@ class TestExecutionsController(base.FunctionalTest):
 
         self.assertEqual(400, resp.status_int)
 
-        self.assertIn("unable to convert to int", resp.body)
+        self.assertIn("unable to convert to int", resp.body.decode())
 
     def test_get_all_pagination_invalid_sort_dirs_length(self):
         resp = self.app.get(
@@ -296,7 +296,7 @@ class TestExecutionsController(base.FunctionalTest):
 
         self.assertIn(
             "Length of sort_keys must be equal or greater than sort_dirs",
-            resp.body
+            resp.body.decode()
         )
 
     def test_get_all_pagination_unknown_direction(self):
@@ -307,4 +307,4 @@ class TestExecutionsController(base.FunctionalTest):
 
         self.assertEqual(400, resp.status_int)
 
-        self.assertIn("Unknown sort direction", resp.body)
+        self.assertIn("Unknown sort direction", resp.body.decode())

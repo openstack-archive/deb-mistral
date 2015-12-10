@@ -44,3 +44,18 @@ class NeutronActionGenerator(base.OpenStackActionGenerator):
 class CinderActionGenerator(base.OpenStackActionGenerator):
     action_namespace = "cinder"
     base_action_class = actions.CinderAction
+
+
+class CeilometerActionGenerator(base.OpenStackActionGenerator):
+    action_namespace = "ceilometer"
+    base_action_class = actions.CeilometerAction
+
+
+class TroveActionGenerator(base.OpenStackActionGenerator):
+    action_namespace = "trove"
+    base_action_class = actions.TroveAction
+
+
+class IronicActionGenerator(base.OpenStackActionGenerator):
+    action_namespace = "ironic"
+    base_action_class = actions.IronicAction

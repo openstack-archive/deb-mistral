@@ -15,18 +15,19 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from email.header import Header
 from email.mime import text
+
 import json
 import requests
 import smtplib
-
-from oslo_log import log as logging
 
 from mistral.actions import base
 from mistral import exceptions as exc
 from mistral.utils import javascript
 from mistral.utils import ssh_utils
 from mistral.workflow import utils as wf_utils
+from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
 
@@ -242,6 +243,7 @@ class MistralHTTPAction(HTTPAction):
             'Mistral-Workflow-Execution-Id': actx.get('workflow_execution_id'),
             'Mistral-Task-Id': actx.get('task_id'),
             'Mistral-Action-Execution-Id': actx.get('action_execution_id'),
+            'Mistral-Callback-URL': actx.get('callback_url'),
         })
 
         super(MistralHTTPAction, self).__init__(
@@ -271,7 +273,7 @@ class SendEmailAction(base.Action):
         # TODO(dzimine): validate parameters
 
         # Task invocation parameters.
-        self.to = ', '.join(to_addrs)
+        self.to = to_addrs
         self.subject = subject or "<No subject>"
         self.body = body
 
@@ -286,11 +288,10 @@ class SendEmailAction(base.Action):
                  (self.sender, self.to, self.subject,
                   self.smtp_server, self.body[:128]))
 
-        # TODO(dzimine): handle utf-8, http://stackoverflow.com/a/14506784
-        message = text.MIMEText(self.body)
-        message['Subject'] = self.subject
+        message = text.MIMEText(self.body, _charset='utf-8')
+        message['Subject'] = Header(self.subject, 'utf-8')
         message['From'] = self.sender
-        message['To'] = self.to
+        message['To'] = ', '.join(self.to)
 
         try:
             s = smtplib.SMTP(self.smtp_server)
@@ -330,19 +331,20 @@ class SSHAction(base.Action):
     def _execute_cmd_method(self):
         return ssh_utils.execute_command
 
-    def __init__(self, cmd, host, username, password=None, private_key=None):
+    def __init__(self, cmd, host, username,
+                 password=None, private_key_filename=None):
         self.cmd = cmd
         self.host = host
         self.username = username
         self.password = password
-        self.private_key = private_key
+        self.private_key_filename = private_key_filename
 
         self.params = {
             'cmd': self.cmd,
             'host': self.host,
             'username': self.username,
             'password': self.password,
-            'private_key': self.private_key
+            'private_key_filename': self.private_key_filename
         }
 
     def run(self):
@@ -386,14 +388,15 @@ class SSHProxiedAction(SSHAction):
     def _execute_cmd_method(self):
         return ssh_utils.execute_command_via_gateway
 
-    def __init__(self, cmd, host, username, private_key, gateway_host,
-                 gateway_username=None, password=None, proxy_command=None):
+    def __init__(self, cmd, host, username, private_key_filename,
+                 gateway_host, gateway_username=None,
+                 password=None, proxy_command=None):
         super(SSHProxiedAction, self).__init__(
             cmd,
             host,
             username,
             password,
-            private_key
+            private_key_filename
         )
 
         self.gateway_host = gateway_host

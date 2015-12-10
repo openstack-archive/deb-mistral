@@ -90,3 +90,39 @@ class OpenStackActionTest(base.BaseTestCase):
 
         self.assertTrue(mocked().volumes.get.called)
         mocked().volumes.get.assert_called_once_with(volume="1234-abcd")
+
+    @mock.patch.object(actions.CeilometerAction, '_get_client')
+    def test_ceilometer_action(self, mocked):
+        method_name = "alarms.get"
+        action_class = actions.CeilometerAction
+        action_class.client_method_name = method_name
+        params = {'alarm_id': '1234-abcd'}
+        action = action_class(**params)
+        action.run()
+
+        self.assertTrue(mocked().alarms.get.called)
+        mocked().alarms.get.assert_called_once_with(alarm_id="1234-abcd")
+
+    @mock.patch.object(actions.TroveAction, '_get_client')
+    def test_trove_action(self, mocked):
+        method_name = "instances.get"
+        action_class = actions.TroveAction
+        action_class.client_method_name = method_name
+        params = {'instance': '1234-abcd'}
+        action = action_class(**params)
+        action.run()
+
+        self.assertTrue(mocked().instances.get.called)
+        mocked().instances.get.assert_called_once_with(instance="1234-abcd")
+
+    @mock.patch.object(actions.IronicAction, '_get_client')
+    def test_ironic_action(self, mocked):
+        method_name = "node.get"
+        action_class = actions.IronicAction
+        action_class.client_method_name = method_name
+        params = {'node': '1234-abcd'}
+        action = action_class(**params)
+        action.run()
+
+        self.assertTrue(mocked().node.get.called)
+        mocked().node.get.assert_called_once_with(node="1234-abcd")

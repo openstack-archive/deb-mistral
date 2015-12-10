@@ -1,4 +1,5 @@
 # Copyright 2014 - Mirantis, Inc.
+# Copyright 2015 - StackStorm, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +13,15 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-import mock
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from mistral.db.v2 import api as db_api
-from mistral.engine import default_engine as de
 from mistral import exceptions as exc
 from mistral.services import workflows as wf_service
 from mistral.tests.unit.engine import base
 from mistral.workflow import states
+from mistral.workflow import utils as wf_utils
 
 
 LOG = logging.getLogger(__name__)
@@ -32,12 +32,12 @@ cfg.CONF.set_default('auth_enable', False, group='pecan')
 
 
 class DirectWorkflowEngineTest(base.EngineTestCase):
-    def _run_workflow(self, workflow_yaml):
+    def _run_workflow(self, workflow_yaml, state=states.ERROR):
         wf_service.create_workflows(workflow_yaml)
 
         wf_ex = self.engine.start_workflow('wf', {})
 
-        self._await(lambda: self.is_execution_error(wf_ex.id))
+        self._await(lambda: self.is_execution_in_state(wf_ex.id, state))
 
         return db_api.get_workflow_execution(wf_ex.id)
 
@@ -88,6 +88,45 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
         self._await(lambda: self.is_task_success(task1.id))
         self._await(lambda: self.is_task_success(task3.id))
         self._await(lambda: self.is_task_success(task4.id))
+
+        self.assertTrue(wf_ex.state, states.ERROR)
+
+    def test_direct_workflow_condition_transition_not_triggering(self):
+        wf_text = """---
+        version: '2.0'
+
+        wf:
+          input:
+            - var: null
+
+          tasks:
+            task1:
+              action: std.fail
+              on-success:
+                - task2
+              on-error:
+                - task3: <% $.var != null %>
+
+            task2:
+              action: std.noop
+
+            task3:
+              action: std.noop
+        """
+
+        wf_service.create_workflows(wf_text)
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self._await(lambda: self.is_execution_error(wf_ex.id))
+
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        tasks = wf_ex.task_executions
+
+        task1 = self._assert_single_item(tasks, name='task1')
+
+        self.assertEqual(1, len(tasks))
+
+        self._await(lambda: self.is_task_error(task1.id))
 
         self.assertTrue(wf_ex.state, states.ERROR)
 
@@ -163,11 +202,10 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
               action: std.echo wrong_input="Ha-ha"
         """
 
-        self.assertRaises(
-            exc.InputException,
-            self._run_workflow,
-            wf_text
-        )
+        wf_ex = self._run_workflow(wf_text)
+
+        self.assertIn("Invalid input", wf_ex.state_info)
+        self.assertEqual(states.ERROR, wf_ex.state)
 
     def test_wrong_action(self):
         wf_text = """
@@ -208,22 +246,15 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         wf_service.create_workflows(wf_text)
 
-        with mock.patch.object(de.DefaultEngine, '_fail_workflow') as mock_fw:
-            self.assertRaises(
-                exc.InvalidActionException,
-                self.engine.start_workflow, 'wf', None)
+        wf_ex = self.engine.start_workflow('wf', None)
 
-            self.assertEqual(1, mock_fw.call_count)
+        self.assertIn(
+            "Failed to find action [action_name=wrong.task]",
+            wf_ex.state_info
+        )
+        self.assertEqual(states.ERROR, wf_ex.state)
 
-            self.assertTrue(
-                issubclass(
-                    type(mock_fw.call_args[0][1]),
-                    exc.InvalidActionException
-                ),
-                "Called with a right exception"
-            )
-
-    def test_messed_yaql(self):
+    def test_next_task_with_input_yaql_error(self):
         wf_text = """
         version: '2.0'
 
@@ -240,9 +271,98 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
               action: std.echo output=<% wrong(yaql) %>
         """
 
+        # Invoke workflow and assert workflow is in ERROR.
         wf_ex = self._run_workflow(wf_text)
 
-        self.assertTrue(wf_ex.state, states.ERROR)
+        self.assertEqual(states.ERROR, wf_ex.state)
+        self.assertIn('Can not evaluate YAQL expression', wf_ex.state_info)
+
+        # Assert that there is only one task execution and it's SUCCESS.
+        self.assertEqual(1, len(wf_ex.task_executions))
+
+        task_1_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task1'
+        )
+
+        self.assertEqual(states.SUCCESS, task_1_ex.state)
+
+        # Assert that there is only one action execution and it's SUCCESS.
+        task_1_action_exs = db_api.get_action_executions(
+            task_execution_id=task_1_ex.id
+        )
+
+        self.assertEqual(1, len(task_1_action_exs))
+        self.assertEqual(states.SUCCESS, task_1_action_exs[0].state)
+
+    def test_async_next_task_with_input_yaql_error(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          type: direct
+
+          tasks:
+            task1:
+              action: std.async_noop
+              on-complete:
+                - task2
+
+            task2:
+              action: std.echo output=<% wrong(yaql) %>
+        """
+
+        # Invoke workflow and assert workflow, task,
+        # and async action execution are RUNNING.
+        wf_ex = self._run_workflow(wf_text, states.RUNNING)
+
+        self.assertEqual(states.RUNNING, wf_ex.state)
+        self.assertEqual(1, len(wf_ex.task_executions))
+
+        task_1_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task1'
+        )
+
+        self.assertEqual(states.RUNNING, task_1_ex.state)
+
+        task_1_action_exs = db_api.get_action_executions(
+            task_execution_id=task_1_ex.id
+        )
+
+        self.assertEqual(1, len(task_1_action_exs))
+        self.assertEqual(states.RUNNING, task_1_action_exs[0].state)
+
+        # Update async action execution result.
+        result = wf_utils.Result(data='foobar')
+
+        self.assertRaises(
+            exc.YaqlEvaluationException,
+            self.engine.on_action_complete,
+            task_1_action_exs[0].id,
+            result
+        )
+
+        # Assert that task1 is SUCCESS and workflow is ERROR.
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+        self.assertEqual(states.ERROR, wf_ex.state)
+        self.assertIn('Can not evaluate YAQL expression', wf_ex.state_info)
+        self.assertEqual(1, len(wf_ex.task_executions))
+
+        task_1_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task1'
+        )
+
+        self.assertEqual(states.SUCCESS, task_1_ex.state)
+
+        task_1_action_exs = db_api.get_action_executions(
+            task_execution_id=task_1_ex.id
+        )
+
+        self.assertEqual(1, len(task_1_action_exs))
+        self.assertEqual(states.SUCCESS, task_1_action_exs[0].state)
 
     def test_messed_yaql_in_first_task(self):
         wf_text = """
@@ -257,20 +377,13 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         wf_service.create_workflows(wf_text)
 
-        with mock.patch.object(de.DefaultEngine, '_fail_workflow') as mock_fw:
-            self.assertRaises(
-                exc.YaqlEvaluationException,
-                self.engine.start_workflow, 'wf', None
-            )
+        wf_ex = self.engine.start_workflow('wf', None)
 
-            self.assertEqual(1, mock_fw.call_count)
-            self.assertTrue(
-                issubclass(
-                    type(mock_fw.call_args[0][1]),
-                    exc.YaqlEvaluationException
-                ),
-                "Called with a right exception"
-            )
+        self.assertIn(
+            "Can not evaluate YAQL expression:  wrong(yaql)",
+            wf_ex.state_info
+        )
+        self.assertEqual(states.ERROR, wf_ex.state)
 
     def test_mismatched_yaql_in_first_task(self):
         wf_text = """
@@ -286,12 +399,10 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         wf_service.create_workflows(wf_text)
 
-        exception = self.assertRaises(
-            exc.YaqlEvaluationException,
-            self.engine.start_workflow, 'wf', {'var': 2}
-        )
+        wf_ex = self.engine.start_workflow('wf', {'var': 2})
 
-        self.assertIn("Can not evaluate YAQL expression", exception.message)
+        self.assertIn("Can not evaluate YAQL expression", wf_ex.state_info)
+        self.assertEqual(states.ERROR, wf_ex.state)
 
     def test_one_line_syntax_in_on_clauses(self):
         wf_text = """
@@ -322,6 +433,116 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
         wf_ex = self.engine.start_workflow('wf', {})
 
         self._await(lambda: self.is_execution_success(wf_ex.id))
+
+    def test_task_on_clause_has_yaql_error(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          type: direct
+
+          tasks:
+            task1:
+              action: std.noop
+              on-success:
+                - task2: <% wrong(yaql) %>
+
+            task2:
+              action: std.noop
+        """
+
+        # Invoke workflow and assert workflow is in ERROR.
+        wf_ex = self._run_workflow(wf_text)
+
+        self.assertEqual(states.ERROR, wf_ex.state)
+        self.assertIn('Can not evaluate YAQL expression', wf_ex.state_info)
+
+        # Assert that there is only one task execution and it's SUCCESS.
+        self.assertEqual(1, len(wf_ex.task_executions))
+
+        task_1_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task1'
+        )
+
+        self.assertEqual(states.SUCCESS, task_1_ex.state)
+
+        # Assert that there is only one action execution and it's SUCCESS.
+        task_1_action_exs = db_api.get_action_executions(
+            task_execution_id=task_1_ex.id
+        )
+
+        self.assertEqual(1, len(task_1_action_exs))
+        self.assertEqual(states.SUCCESS, task_1_action_exs[0].state)
+
+    def test_async_task_on_clause_has_yaql_error(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          type: direct
+
+          tasks:
+            task1:
+              action: std.async_noop
+              on-complete:
+                - task2: <% wrong(yaql) %>
+
+            task2:
+              action: std.noop
+        """
+
+        # Invoke workflow and assert workflow, task,
+        # and async action execution are RUNNING.
+        wf_ex = self._run_workflow(wf_text, states.RUNNING)
+
+        self.assertEqual(states.RUNNING, wf_ex.state)
+        self.assertEqual(1, len(wf_ex.task_executions))
+
+        task_1_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task1'
+        )
+
+        self.assertEqual(states.RUNNING, task_1_ex.state)
+
+        task_1_action_exs = db_api.get_action_executions(
+            task_execution_id=task_1_ex.id
+        )
+
+        self.assertEqual(1, len(task_1_action_exs))
+        self.assertEqual(states.RUNNING, task_1_action_exs[0].state)
+
+        # Update async action execution result.
+        result = wf_utils.Result(data='foobar')
+
+        self.assertRaises(
+            exc.YaqlEvaluationException,
+            self.engine.on_action_complete,
+            task_1_action_exs[0].id,
+            result
+        )
+
+        # Assert that task1 is SUCCESS and workflow is ERROR.
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+        self.assertEqual(states.ERROR, wf_ex.state)
+        self.assertIn('Can not evaluate YAQL expression', wf_ex.state_info)
+        self.assertEqual(1, len(wf_ex.task_executions))
+
+        task_1_ex = self._assert_single_item(
+            wf_ex.task_executions,
+            name='task1'
+        )
+
+        self.assertEqual(states.SUCCESS, task_1_ex.state)
+
+        task_1_action_exs = db_api.get_action_executions(
+            task_execution_id=task_1_ex.id
+        )
+
+        self.assertEqual(1, len(task_1_action_exs))
+        self.assertEqual(states.SUCCESS, task_1_action_exs[0].state)
 
     def test_inconsistent_task_names(self):
         wf_text = """

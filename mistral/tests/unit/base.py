@@ -32,7 +32,7 @@ from mistral.db.sqlalchemy import sqlite_lock
 from mistral.db.v2 import api as db_api_v2
 from mistral.services import action_manager
 from mistral.services import security
-from mistral.tests import config as test_config
+from mistral.tests.unit import config as test_config
 from mistral.utils import inspect_utils as i_utils
 from mistral import version
 
@@ -203,7 +203,9 @@ class DbTestCase(BaseTest):
 
     @classmethod
     def __heavy_init(cls):
-        """Make this method private to prevent extending this one.
+        """Method that runs heavy_init().
+
+        Make this method private to prevent extending this one.
         It runs heavy_init() only once.
 
         Note: setUpClass() can be used, but it magically is not invoked
@@ -215,7 +217,9 @@ class DbTestCase(BaseTest):
 
     @classmethod
     def heavy_init(cls):
-        """Runs a long initialization (runs once by class)
+        """Runs a long initialization.
+
+        This method runs long initialization  once by class
         and can be extended by child classes.
         """
         # If using sqlite, change to memory. The default is file based.

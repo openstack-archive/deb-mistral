@@ -43,11 +43,13 @@ class DirectWorkflowController(base.WorkflowController):
     __workflow_type__ = "direct"
 
     def _get_upstream_task_executions(self, task_spec):
-        return filter(
-            lambda t_e: self._is_upstream_task_execution(task_spec, t_e),
-            wf_utils.find_task_executions_by_specs(
-                self.wf_ex,
-                self.wf_spec.find_inbound_task_specs(task_spec)
+        return list(
+            filter(
+                lambda t_e: self._is_upstream_task_execution(task_spec, t_e),
+                wf_utils.find_task_executions_by_specs(
+                    self.wf_ex,
+                    self.wf_spec.find_inbound_task_specs(task_spec)
+                )
             )
         )
 
@@ -148,15 +150,23 @@ class DirectWorkflowController(base.WorkflowController):
 
     def all_errors_handled(self):
         for t_ex in wf_utils.find_error_task_executions(self.wf_ex):
-            if not self.wf_spec.get_on_error_clause(t_ex.name):
+
+            tasks_on_error = self._find_next_task_names_for_clause(
+                self.wf_spec.get_on_error_clause(t_ex.name),
+                data_flow.evaluate_task_outbound_context(t_ex)
+            )
+
+            if not tasks_on_error:
                 return False
 
         return True
 
     def _find_end_tasks(self):
-        return filter(
-            lambda t_ex: not self._has_outbound_tasks(t_ex),
-            wf_utils.find_successful_task_executions(self.wf_ex)
+        return list(
+            filter(
+                lambda t_ex: not self._has_outbound_tasks(t_ex),
+                wf_utils.find_successful_task_executions(self.wf_ex)
+            )
         )
 
     def _has_outbound_tasks(self, task_ex):
@@ -199,7 +209,9 @@ class DirectWorkflowController(base.WorkflowController):
 
     @staticmethod
     def _find_next_task_names_for_clause(clause, ctx):
-        """Finds next task(command) names base on given {name: condition}
+        """Finds next tasks names.
+
+         This method finds next task(command) base on given {name: condition}
          dictionary.
 
         :param clause: Dictionary {task_name: condition} taken from
@@ -218,7 +230,9 @@ class DirectWorkflowController(base.WorkflowController):
         ]
 
     def _remove_started_joins(self, cmds):
-        return filter(lambda cmd: not self._is_started_join(cmd), cmds)
+        return list(
+            filter(lambda cmd: not self._is_started_join(cmd), cmds)
+        )
 
     def _is_started_join(self, cmd):
         if not (isinstance(cmd, commands.RunTask) and
@@ -278,7 +292,9 @@ class DirectWorkflowController(base.WorkflowController):
         if not in_t_ex or not states.is_completed(in_t_ex.state):
             return False
 
-        return filter(
-            lambda t_name: join_task_spec.get_name() == t_name,
-            self._find_next_task_names(in_t_ex)
+        return list(
+            filter(
+                lambda t_name: join_task_spec.get_name() == t_name,
+                self._find_next_task_names(in_t_ex)
+            )
         )

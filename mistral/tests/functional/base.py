@@ -20,6 +20,7 @@ import mock
 import six
 
 from tempest import clients
+from tempest.common import credentials_factory as creds
 from tempest import config
 from tempest import test as test
 from tempest_lib import auth
@@ -45,7 +46,7 @@ def find_items(items, **props):
 
         return True
 
-    filtered = filter(lambda item: _matches(item, **props), items)
+    filtered = list(filter(lambda item: _matches(item, **props), items))
 
     if len(filtered) == 1:
         return filtered[0]
@@ -237,7 +238,9 @@ class AuthProv(auth.KeystoneV2AuthProvider):
 class TestCase(test.BaseTestCase):
     @classmethod
     def resource_setup(cls):
-        """This method allows to initialize authentication before
+        """Client authentication.
+
+        This method allows to initialize authentication before
         each test case and define parameters of Mistral API Service.
         """
         super(TestCase, cls).resource_setup()
@@ -246,7 +249,10 @@ class TestCase(test.BaseTestCase):
             cls.mgr = mock.MagicMock()
             cls.mgr.auth_provider = AuthProv()
         else:
-            cls.mgr = clients.Manager()
+            cls.creds = creds.get_configured_credentials(
+                credential_type='user'
+            )
+            cls.mgr = clients.Manager(cls.creds)
 
         if cls._service == 'workflowv2':
             cls.client = MistralClientV2(

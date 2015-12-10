@@ -25,7 +25,7 @@ from mistral.db.v2.sqlalchemy import api as db_api
 from mistral.db.v2.sqlalchemy import models as db_models
 from mistral import exceptions as exc
 from mistral.services import security
-from mistral.tests import base as test_base
+from mistral.tests.unit import base as test_base
 
 
 WORKBOOKS = [
@@ -652,13 +652,13 @@ class ActionExecutionTest(SQLAlchemyTest):
 
         updated = db_api.update_action_execution(
             created.id,
-            {'state': 'FAILED', 'state_info': ".." * 1024}
+            {'state': 'FAILED', 'state_info': ".." * 65536}
         )
 
         self.assertEqual('FAILED', updated.state)
         state_info = db_api.load_action_execution(updated.id).state_info
         self.assertEqual(
-            1023,
+            65535,
             len(state_info)
         )
 
@@ -683,6 +683,7 @@ WF_EXECS = [
         'task_id': None,
         'trust_id': None,
         'description': None,
+        'output': None
     },
     {
         'spec': {},
@@ -695,6 +696,7 @@ WF_EXECS = [
         'task_id': None,
         'trust_id': None,
         'description': None,
+        'output': None
     }
 ]
 
@@ -792,13 +794,13 @@ class WorkflowExecutionTest(SQLAlchemyTest):
 
         updated = db_api.update_workflow_execution(
             created.id,
-            {'state': 'FAILED', 'state_info': ".." * 1024}
+            {'state': 'FAILED', 'state_info': ".." * 65536}
         )
 
         self.assertEqual('FAILED', updated.state)
         state_info = db_api.load_execution(updated.id).state_info
         self.assertEqual(
-            1023,
+            65535,
             len(state_info)
         )
 
@@ -1113,17 +1115,38 @@ class CronTriggerTest(SQLAlchemyTest):
 
         self.assertIsNone(created.updated_at)
 
-        updated = db_api.update_cron_trigger(
+        updated, updated_count = db_api.update_cron_trigger(
             created.name,
             {'pattern': '*/1 * * * *'}
         )
 
         self.assertEqual('*/1 * * * *', updated.pattern)
+        self.assertEqual(1, updated_count)
 
         fetched = db_api.get_cron_trigger(created.name)
 
         self.assertEqual(updated, fetched)
         self.assertIsNotNone(fetched.updated_at)
+
+        # Test update_cron_trigger and query_filter with results
+        updated, updated_count = db_api.update_cron_trigger(
+            created.name,
+            {'pattern': '*/1 * * * *'},
+            query_filter={'name': created.name}
+        )
+
+        self.assertEqual(updated, fetched)
+        self.assertEqual(1, updated_count)
+
+        # Test update_cron_trigger and query_filter without results
+        updated, updated_count = db_api.update_cron_trigger(
+            created.name,
+            {'pattern': '*/1 * * * *'},
+            query_filter={'name': 'not-existing-id'}
+        )
+
+        self.assertEqual(updated, updated)
+        self.assertEqual(0, updated_count)
 
     def test_create_or_update_cron_trigger(self):
         name = 'not-existing-id'
@@ -1163,8 +1186,9 @@ class CronTriggerTest(SQLAlchemyTest):
 
         self.assertEqual(created, fetched)
 
-        db_api.delete_cron_trigger(created.name)
+        rowcount = db_api.delete_cron_trigger(created.name)
 
+        self.assertEqual(1, rowcount)
         self.assertRaises(
             exc.NotFoundException,
             db_api.get_cron_trigger,

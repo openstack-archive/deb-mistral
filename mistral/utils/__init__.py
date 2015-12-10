@@ -95,13 +95,14 @@ def set_thread_local(var_name, val):
 
 def log_exec(logger, level=logging.DEBUG):
     """Decorator for logging function execution.
+
         By default, target function execution is logged with DEBUG level.
     """
 
     def _decorator(func):
         def _logged(*args, **kw):
             params_repr = ("[args=%s, kw=%s]" % (str(args), str(kw))
-                           if len(args) > 0 or len(kw) > 0 else "")
+                           if args or kw else "")
 
             func_repr = ("Called method [name=%s, doc='%s', params=%s]" %
                          (func.__name__, func.__doc__, params_repr))
@@ -267,6 +268,7 @@ def tempdir(**kwargs):
 
     if 'dir' not in argdict:
         argdict['dir'] = '/tmp/'
+
     tmpdir = tempfile.mkdtemp(**argdict)
 
     try:
@@ -281,8 +283,19 @@ def tempdir(**kwargs):
             )
 
 
+def save_text_to(text, file_path, overwrite=False):
+    if os.path.exists(file_path) and not overwrite:
+        raise exc.DataAccessException(
+            "Cannot save data to file. File %s already exists."
+        )
+
+    with open(file_path, 'w') as f:
+        f.write(text)
+
+
 def generate_key_pair(key_length=2048):
     """Create RSA key pair with specified number of bits in key.
+
     Returns tuple of private and public keys.
     """
     with tempdir() as tmpdir:
@@ -295,15 +308,20 @@ def generate_key_pair(key_length=2048):
             '-f', keyfile,  # filename of the key file
             '-C', 'Generated-by-Mistral'  # key comment
         ]
+
         if key_length is not None:
             args.extend(['-b', key_length])
+
         processutils.execute(*args)
+
         if not os.path.exists(keyfile):
             raise exc.DataAccessException(
                 "Private key file hasn't been created"
             )
+
         private_key = open(keyfile).read()
         public_key_path = keyfile + '.pub'
+
         if not os.path.exists(public_key_path):
             raise exc.DataAccessException(
                 "Public key file hasn't been created"

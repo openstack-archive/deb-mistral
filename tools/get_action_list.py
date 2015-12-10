@@ -18,6 +18,7 @@ import inspect
 import json
 import os
 
+from ceilometerclient.v2 import client as ceilometerclient
 from cinderclient import utils as cinder_base
 from cinderclient.v2 import client as cinderclient
 from glanceclient.v2 import client as glanceclient
@@ -25,9 +26,12 @@ from heatclient.openstack.common.apiclient import base as heat_base
 from heatclient.v1 import client as heatclient
 from keystoneclient import base as keystone_base
 from keystoneclient.v3 import client as keystoneclient
-from novaclient.openstack.common.apiclient import base as nova_base
 from novaclient import client as novaclient
-
+from novaclient.openstack.common.apiclient import base as nova_base
+from troveclient import base as trove_base
+from troveclient.v1 import client as troveclient
+from ironicclient.common import base as ironic_base
+from ironicclient.v1 import client as ironicclient
 
 # TODO(nmakhotkin): Find a rational way to do it for neutron.
 # TODO(nmakhotkin): Implement recursive way of searching for managers
@@ -59,7 +63,8 @@ BASE_HEAT_MANAGER = heat_base.HookableMixin
 BASE_NOVA_MANAGER = nova_base.HookableMixin
 BASE_KEYSTONE_MANAGER = keystone_base.Manager
 BASE_CINDER_MANAGER = cinder_base.HookableMixin
-
+BASE_TROVE_MANAGER = trove_base.Manager
+BASE_IRONIC_MANAGER = ironic_base.Manager
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -68,7 +73,7 @@ def get_parser():
     )
     parser.add_argument(
         'service',
-        choices=['nova', 'glance', 'heat', 'cinder', 'keystone'],
+        choices=CLIENTS.keys(),
         help='Service name which methods need to be found.'
     )
     parser.add_argument(
@@ -103,6 +108,12 @@ GLANCE_NAMESPACE_LIST = [
     'image_members', 'image_tags', 'images', 'schemas', 'tasks'
 ]
 
+CEILOMETER_NAMESPACE_LIST = [
+    'alarms', 'capabilities', 'event_types', 'events', 'meters',
+    'new_samples', 'query_alarm_history', 'query_alarms', 'query_samples',
+    'resources', 'samples', 'statistics', 'trait_descriptions', 'traits'
+]
+
 
 def get_nova_client(**kwargs):
     return novaclient.Client(2)
@@ -120,28 +131,44 @@ def get_heat_client(**kwargs):
     return heatclient.Client('')
 
 
+def get_ceilometer_client(**kwargs):
+    return ceilometerclient.Client('')
+
+
 def get_cinder_client(**kwargs):
     return cinderclient.Client()
 
+def get_trove_client(**kwargs):
+    return troveclient.Client('username', 'password')
+
+def get_ironic_client(**kwargs):
+    return ironicclient.Client("http://127.0.0.1:6385/")
 
 CLIENTS = {
     'nova': get_nova_client,
     'heat': get_heat_client,
+    'ceilometer': get_ceilometer_client,
     'cinder': get_cinder_client,
     'keystone': get_keystone_client,
     'glance': get_glance_client,
+    'trove' : get_trove_client,
+    'ironic' : get_ironic_client,
     # 'neutron': get_nova_client
 }
 BASE_MANAGERS = {
     'nova': BASE_NOVA_MANAGER,
     'heat': BASE_HEAT_MANAGER,
+    'ceilometer': None,
     'cinder': BASE_CINDER_MANAGER,
     'keystone': BASE_KEYSTONE_MANAGER,
     'glance': None,
+    'trove': BASE_TROVE_MANAGER,
+    'ironic': BASE_IRONIC_MANAGER,
     # 'neutron': BASE_NOVA_MANAGER
 }
 NAMESPACES = {
-    'glance': GLANCE_NAMESPACE_LIST
+    'glance': GLANCE_NAMESPACE_LIST,
+    'ceilometer': CEILOMETER_NAMESPACE_LIST
 }
 ALLOWED_ATTRS = ['service_catalog', 'catalog']
 FORBIDDEN_METHODS = [

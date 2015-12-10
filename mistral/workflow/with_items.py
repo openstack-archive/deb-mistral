@@ -45,9 +45,9 @@ def is_completed(task_ex):
 
 def get_index(task_ex):
     return len(
-        filter(
+        list(filter(
             lambda x: x.accepted or states.RUNNING, task_ex.executions
-        )
+        ))
     )
 
 
@@ -58,7 +58,7 @@ def get_concurrency(task_ex):
 def get_final_state(task_ex):
     find_error = lambda x: x.accepted and x.state == states.ERROR
 
-    if filter(find_error, task_ex.executions):
+    if list(filter(find_error, task_ex.executions)):
         return states.ERROR
     else:
         return states.SUCCESS
@@ -81,10 +81,10 @@ def _get_indices_if_rerun(unaccepted_executions):
 
 def _get_unaccepted_act_exs(task_ex):
     # Choose only if not accepted but completed.
-    return filter(
+    return list(filter(
         lambda x: not x.accepted and states.is_completed(x.state),
         task_ex.executions
-    )
+    ))
 
 
 def get_indices_for_loop(task_ex):
@@ -98,25 +98,23 @@ def get_indices_for_loop(task_ex):
 
         if max(indices) < count - 1:
             indices += list(six.moves.range(max(indices) + 1, count))
+    else:
+        index = get_index(task_ex)
+        indices = list(six.moves.range(index, count))
 
-        return indices[:capacity] if capacity else indices
-
-    index = get_index(task_ex)
-
-    number_to_execute = capacity if capacity else count - index
-
-    return list(six.moves.range(index, index + number_to_execute))
+    return indices[:capacity]
 
 
 def decrease_capacity(task_ex, count):
     with_items_context = _get_context(task_ex)
 
-    if with_items_context[_CAPACITY] >= count:
-        with_items_context[_CAPACITY] -= count
-    elif with_items_context[_CAPACITY]:
-        raise exc.WorkflowException(
-            "Impossible to apply current with-items concurrency."
-        )
+    if with_items_context[_CAPACITY] is not None:
+        if with_items_context[_CAPACITY] >= count:
+            with_items_context[_CAPACITY] -= count
+        else:
+            raise exc.WorkflowException(
+                "Impossible to apply current with-items concurrency."
+            )
 
     task_ex.runtime_context.update({_WITH_ITEMS: with_items_context})
 
@@ -164,9 +162,9 @@ def validate_input(with_items_input):
 def has_more_iterations(task_ex):
     # See action executions which have been already
     # accepted or are still running.
-    action_exs = filter(
+    action_exs = list(filter(
         lambda x: x.accepted or x.state == states.RUNNING,
         task_ex.executions
-    )
+    ))
 
     return get_count(task_ex) > len(action_exs)

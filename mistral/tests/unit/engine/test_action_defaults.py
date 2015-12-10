@@ -16,12 +16,13 @@ import mock
 from oslo_config import cfg
 from oslo_log import log as logging
 import requests
+import six
 import testtools
 
 from mistral.actions import std_actions
 from mistral.db.v2 import api as db_api
 from mistral.services import workflows as wf_service
-from mistral.tests import base as test_base
+from mistral.tests.unit import base as test_base
 from mistral.tests.unit.engine import base
 from mistral.workflow import states
 
@@ -99,6 +100,7 @@ wf2_with_items:
 
 class ActionDefaultTest(base.EngineTestCase):
 
+    @testtools.skipIf(six.PY3, "bug/1517020")
     @mock.patch.object(
         requests, 'request',
         mock.MagicMock(return_value=test_base.FakeHTTPResponse('', 200, 'OK')))
@@ -124,6 +126,7 @@ class ActionDefaultTest(base.EngineTestCase):
             auth=EXPECTED_ENV_AUTH,
             timeout=ENV['__actions']['std.http']['timeout'])
 
+    @testtools.skipIf(six.PY3, "bug/1517020")
     @mock.patch.object(
         requests, 'request',
         mock.MagicMock(return_value=test_base.FakeHTTPResponse('', 200, 'OK')))

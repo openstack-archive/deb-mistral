@@ -14,13 +14,16 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import base64
+from email.header import decode_header
 from email import parser
 import mock
+import six
 import testtools
 
 from mistral.actions import std_actions as std
 from mistral import exceptions as exc
-from mistral.tests import base
+from mistral.tests.unit import base
 
 """
 To try against a real SMTP server:
@@ -49,7 +52,8 @@ class SendEmailActionTest(base.BaseTest):
 
     def setUp(self):
         super(SendEmailActionTest, self).setUp()
-        self.to_addrs = ["dz@example.com, deg@example.com", "xyz@example.com"]
+        self.to_addrs = ["dz@example.com", "deg@example.com",
+                         "xyz@example.com"]
         self.subject = "Multi word subject с русскими буквами"
         self.body = "short multiline\nbody\nc русскими буквами"
 
@@ -81,6 +85,26 @@ class SendEmailActionTest(base.BaseTest):
         action.run()
 
     @mock.patch('smtplib.SMTP')
+    def test_with_mutli_to_addrs(self, smtp):
+        smtp_password = "secret"
+        action = std.SendEmailAction(
+            self.from_addr, self.to_addrs,
+            self.smtp_server, smtp_password, self.subject, self.body
+        )
+        action.run()
+
+    @mock.patch('smtplib.SMTP')
+    def test_with_one_to_addr(self, smtp):
+        to_addr = ["dz@example.com"]
+        smtp_password = "secret"
+
+        action = std.SendEmailAction(
+            self.from_addr, to_addr,
+            self.smtp_server, smtp_password, self.subject, self.body
+        )
+        action.run()
+
+    @mock.patch('smtplib.SMTP')
     def test_send_email(self, smtp):
         action = std.SendEmailAction(
             self.from_addr, self.to_addrs,
@@ -97,14 +121,32 @@ class SendEmailActionTest(base.BaseTest):
         self.assertEqual(
             self.from_addr, sendmail.call_args[1]['from_addr'])
         self.assertEqual(
-            self.to_addrs_str, sendmail.call_args[1]['to_addrs'])
+            self.to_addrs, sendmail.call_args[1]['to_addrs'])
 
         message = parser.Parser().parsestr(sendmail.call_args[1]['msg'])
 
         self.assertEqual(self.from_addr, message['from'])
         self.assertEqual(self.to_addrs_str, message['to'])
-        self.assertEqual(self.subject, message['subject'])
-        self.assertEqual(self.body, message.get_payload())
+        if six.PY3:
+            self.assertEqual(
+                self.subject,
+                decode_header(message['subject'])[0][0].decode('utf-8')
+            )
+        else:
+            self.assertEqual(
+                self.subject.decode('utf-8'),
+                decode_header(message['subject'])[0][0].decode('utf-8')
+            )
+        if six.PY3:
+            self.assertEqual(
+                self.body,
+                base64.b64decode(message.get_payload()).decode('utf-8')
+            )
+        else:
+            self.assertEqual(
+                self.body.decode('utf-8'),
+                base64.b64decode(message.get_payload()).decode('utf-8')
+            )
 
     @mock.patch('smtplib.SMTP')
     def test_with_password(self, smtp):

@@ -43,8 +43,12 @@ ChangeLog
 .idea
 .DS_Store
 etc/*.conf
+etc/mistral.conf.sample
 tools/lintstack.head.py
 tools/pylint_exceptions
 
 #Linux swap file
 *.swp
+
+# Files created by releasenotes build
+releasenotes/build

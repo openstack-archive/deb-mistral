@@ -12,13 +12,17 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from cinderclient.v1 import client as cinderclient
+from ceilometerclient.v2 import client as ceilometerclient
+from cinderclient.v2 import client as cinderclient
 from glanceclient.v2 import client as glanceclient
 from heatclient.v1 import client as heatclient
+from ironicclient.v1 import client as ironicclient
 from keystoneclient import httpclient
 from keystoneclient.v3 import client as keystoneclient
 from neutronclient.v2_0 import client as neutronclient
 from novaclient import client as novaclient
+from troveclient import client as troveclient
+
 from oslo_config import cfg
 from oslo_log import log
 
@@ -123,6 +127,35 @@ class KeystoneAction(base.OpenStackAction):
         return fake_client
 
 
+class CeilometerAction(base.OpenStackAction):
+    _client_class = ceilometerclient.Client
+
+    def _get_client(self):
+        ctx = context.ctx()
+
+        LOG.debug("Ceilometer action security context: %s" % ctx)
+
+        ceilometer_endpoint = keystone_utils.get_endpoint_for_project(
+            'ceilometer'
+        )
+
+        endpoint_url = keystone_utils.format_url(
+            ceilometer_endpoint.url,
+            {'tenant_id': ctx.project_id}
+        )
+
+        return self._client_class(
+            endpoint_url,
+            region_name=ceilometer_endpoint.region,
+            token=ctx.auth_token,
+            username=ctx.user_name
+        )
+
+    @classmethod
+    def _get_fake_client(cls):
+        return cls._client_class("")
+
+
 class HeatAction(base.OpenStackAction):
     _client_class = heatclient.Client
 
@@ -177,7 +210,7 @@ class CinderAction(base.OpenStackAction):
         LOG.debug("Cinder action security context: %s" % ctx)
 
         cinder_endpoint = keystone_utils.get_endpoint_for_project(
-            service_type='volume'
+            service_type='volumev2'
         )
 
         cinder_url = keystone_utils.format_url(
@@ -201,3 +234,59 @@ class CinderAction(base.OpenStackAction):
     @classmethod
     def _get_fake_client(cls):
         return cls._client_class()
+
+
+class TroveAction(base.OpenStackAction):
+    _client_class = troveclient.Client
+
+    def _get_client(self):
+        ctx = context.ctx()
+
+        LOG.debug("Trove action security context: %s" % ctx)
+
+        trove_endpoint = keystone_utils.get_endpoint_for_project(
+            service_type='database'
+        )
+
+        trove_url = keystone_utils.format_url(
+            trove_endpoint.url,
+            {'tenant_id': ctx.project_id}
+        )
+
+        client = self._client_class(
+            ctx.user_name,
+            ctx.auth_token,
+            project_id=ctx.project_id,
+            auth_url=trove_url,
+            region_name=trove_endpoint.region
+        )
+
+        client.client.auth_token = ctx.auth_token
+        client.client.management_url = trove_url
+
+        return client
+
+    @classmethod
+    def _get_fake_client(cls):
+        return cls._client_class()
+
+
+class IronicAction(base.OpenStackAction):
+    _client_class = ironicclient.Client
+
+    def _get_client(self):
+        ctx = context.ctx()
+
+        LOG.debug("Ironic action security context: %s" % ctx)
+
+        ironic_endpoint = keystone_utils.get_endpoint_for_project('ironic')
+
+        return self._client_class(
+            ironic_endpoint.url,
+            token=ctx.auth_token,
+            region_name=ironic_endpoint.region
+        )
+
+    @classmethod
+    def _get_fake_client(cls):
+        return cls._client_class("http://127.0.0.1:6385/")

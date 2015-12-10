@@ -21,7 +21,7 @@ from mistral.db.v2 import api as db_api
 from mistral import exceptions as exc
 from mistral.services import workbooks as wb_service
 from mistral.services import workflows as wf_service
-from mistral.tests import base as test_base
+from mistral.tests.unit import base as test_base
 from mistral.tests.unit.engine import base
 from mistral import utils
 from mistral.workflow import data_flow
@@ -656,17 +656,16 @@ class WithItemsEngineTest(base.EngineTestCase):
         wf_service.create_workflows(workflow_with_concurrency_yaql)
 
         # Start workflow.
-        exception = self.assertRaises(
-            exc.InvalidModelException,
-            self.engine.start_workflow,
+        wf_ex = self.engine.start_workflow(
             'concurrency_test',
             {'concurrency': '2'}
         )
 
         self.assertIn(
             "Invalid data type in ConcurrencyPolicy",
-            exception.message
+            wf_ex.state_info
         )
+        self.assertEqual(states.ERROR, wf_ex.state)
 
     def test_with_items_concurrency_2(self):
         workflow_with_concurrency_2 = """---
@@ -858,6 +857,41 @@ class WithItemsEngineTest(base.EngineTestCase):
         self.assertIn('Mistral', result)
 
         self.assertEqual(states.SUCCESS, task_ex.state)
+
+    def test_with_items_concurrency_gt_list_length(self):
+        workflow_definition = """---
+        version: "2.0"
+
+        concurrency_test:
+          type: direct
+
+          input:
+           - names: ["John", "Ivan"]
+
+          tasks:
+            task1:
+              with-items: name in <% $.names %>
+              action: std.echo output=<% $.name %>
+              concurrency: 3
+        """
+
+        wf_service.create_workflows(workflow_definition)
+
+        # Start workflow.
+        wf_ex = self.engine.start_workflow('concurrency_test', {})
+
+        self._await(
+            lambda: self.is_execution_success(wf_ex.id),
+        )
+
+        wf_ex = db_api.get_execution(wf_ex.id)
+        task_ex = self._assert_single_item(wf_ex.task_executions, name='task1')
+        result = data_flow.get_task_execution_result(task_ex)
+
+        self.assertEqual(states.SUCCESS, task_ex.state)
+        self.assertTrue(isinstance(result, list))
+        self.assertIn('John', result)
+        self.assertIn('Ivan', result)
 
     def test_with_items_retry_policy(self):
         workflow = """---

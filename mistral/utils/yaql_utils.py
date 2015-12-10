@@ -12,11 +12,12 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+
 import yaql
 
 from mistral.db.v2 import api as db_api
 from mistral.workflow import utils as wf_utils
-
+from oslo_serialization import jsonutils
 ROOT_CONTEXT = None
 
 
@@ -42,6 +43,7 @@ def _register_functions(yaql_ctx):
     yaql_ctx.register_function(env_)
     yaql_ctx.register_function(execution_)
     yaql_ctx.register_function(task_)
+    yaql_ctx.register_function(json_pp_, name='json_pp')
 
 
 # Additional YAQL functions needed by Mistral.
@@ -56,6 +58,13 @@ def execution_(context):
     return context['__execution']
 
 
+def json_pp_(data):
+    return jsonutils.dumps(
+        data,
+        indent=4
+    ).replace("\\n", "\n").replace(" \n", "\n")
+
+
 def task_(context, task_name):
     # Importing data_flow in order to break cycle dependency between modules.
     from mistral.workflow import data_flow
@@ -66,7 +75,7 @@ def task_(context, task_name):
 
     # TODO(rakhmerov): Account for multiple executions (i.e. in case of
     # cycles).
-    task_ex = task_execs[-1]
+    task_ex = task_execs[-1] if len(task_execs) > 0 else None
 
     if not task_ex:
         raise ValueError(

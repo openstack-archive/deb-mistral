@@ -54,6 +54,8 @@ class Workbook(Definition):
 
     __table_args__ = (
         sa.UniqueConstraint('name', 'project_id'),
+        sa.Index('%s_project_id' % __tablename__, 'project_id'),
+        sa.Index('%s_scope' % __tablename__, 'scope'),
     )
 
 
@@ -64,6 +66,9 @@ class WorkflowDefinition(Definition):
 
     __table_args__ = (
         sa.UniqueConstraint('name', 'project_id'),
+        sa.Index('%s_is_system' % __tablename__, 'is_system'),
+        sa.Index('%s_project_id' % __tablename__, 'project_id'),
+        sa.Index('%s_scope' % __tablename__, 'scope'),
     )
 
 
@@ -74,6 +79,10 @@ class ActionDefinition(Definition):
 
     __table_args__ = (
         sa.UniqueConstraint('name', 'project_id'),
+        sa.Index('%s_is_system' % __tablename__, 'is_system'),
+        sa.Index('%s_action_class' % __tablename__, 'action_class'),
+        sa.Index('%s_project_id' % __tablename__, 'project_id'),
+        sa.Index('%s_scope' % __tablename__, 'scope'),
     )
 
     # Main properties.
@@ -92,6 +101,14 @@ class Execution(mb.MistralSecureModelBase):
 
     __tablename__ = 'executions_v2'
 
+    __table_args__ = (
+        sa.Index('%s_project_id' % __tablename__, 'project_id'),
+        sa.Index('%s_scope' % __tablename__, 'scope'),
+        sa.Index('%s_state' % __tablename__, 'state'),
+        sa.Index('%s_type' % __tablename__, 'type'),
+        sa.Index('%s_updated_at' % __tablename__, 'updated_at'),
+    )
+
     type = sa.Column(sa.String(50))
 
     __mapper_args__ = {
@@ -107,7 +124,7 @@ class Execution(mb.MistralSecureModelBase):
     workflow_name = sa.Column(sa.String(80))
     spec = sa.Column(st.JsonDictType())
     state = sa.Column(sa.String(20))
-    state_info = sa.Column(sa.String(1024), nullable=True)
+    state_info = sa.Column(sa.Text(), nullable=True)
     tags = sa.Column(st.JsonListType())
 
     # Runtime context like iteration_no of a repeater.
@@ -169,7 +186,7 @@ for cls in utils.iter_subclasses(Execution):
         # Catch and trim Execution.state_info to always fit allocated size.
         cls.state_info,
         'set',
-        lambda t, v, o, i: utils.cut(v, 1020),
+        lambda t, v, o, i: utils.cut(v, 65532),
         retval=True
     )
 
@@ -184,7 +201,7 @@ def validate_long_type_length(cls, field_name, value):
         if (size_limit_kb < 0):
             return
 
-        size_kb = sys.getsizeof(str(value)) / 1024
+        size_kb = int(sys.getsizeof(str(value)) / 1024)
 
         if size_kb > size_limit_kb:
             LOG.error(
@@ -201,8 +218,10 @@ def validate_long_type_length(cls, field_name, value):
 
 
 def register_length_validator(attr_name):
-    """Register an event listener on the attribute that will
-    validate the size every time a 'set' occurs.
+    """Register an event listener on the attribute.
+
+    This event listener will validate the size every
+    time a 'set' occurs.
     """
     for cls in utils.iter_subclasses(Execution):
         if hasattr(cls, attr_name):
@@ -228,6 +247,12 @@ TaskExecution.executions = relationship(
     lazy='select'
 )
 
+sa.Index(
+    '%s_task_execution_id' % Execution.__tablename__,
+    Execution.task_execution_id
+)
+
+
 # Many-to-one for 'TaskExecution' and 'WorkflowExecution'.
 
 TaskExecution.workflow_execution_id = sa.Column(
@@ -243,6 +268,11 @@ WorkflowExecution.task_executions = relationship(
     lazy='select'
 )
 
+sa.Index(
+    '%s_workflow_execution_id' % TaskExecution.__tablename__,
+    TaskExecution.workflow_execution_id
+)
+
 
 # Other objects.
 
@@ -251,6 +281,14 @@ class DelayedCall(mb.MistralModelBase):
     """Contains info about delayed calls."""
 
     __tablename__ = 'delayed_calls_v2'
+
+    __table_args__ = (
+        sa.Index(
+            '%s_processing_execution_time' % __tablename__,
+            'processing',
+            'execution_time'
+        ),
+    )
 
     id = mb.id_column()
     factory_method_path = sa.Column(sa.String(200), nullable=True)
@@ -269,6 +307,9 @@ class Environment(mb.MistralSecureModelBase):
 
     __table_args__ = (
         sa.UniqueConstraint('name', 'project_id'),
+        sa.Index('%s_name' % __tablename__, 'name'),
+        sa.Index('%s_project_id' % __tablename__, 'project_id'),
+        sa.Index('%s_scope' % __tablename__, 'scope'),
     )
 
     # Main properties.
@@ -299,7 +340,14 @@ class CronTrigger(mb.MistralSecureModelBase):
             'workflow_input_hash', 'workflow_name', 'pattern', 'project_id',
             'workflow_params_hash', 'remaining_executions',
             'first_execution_time'
-        )
+        ),
+        sa.Index(
+            '%s_next_execution_time' % __tablename__,
+            'next_execution_time'
+        ),
+        sa.Index('%s_project_id' % __tablename__, 'project_id'),
+        sa.Index('%s_scope' % __tablename__, 'scope'),
+        sa.Index('%s_workflow_name' % __tablename__, 'workflow_name'),
     )
 
     id = mb.id_column()

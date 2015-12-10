@@ -228,7 +228,7 @@ class EngineServer(object):
 
 
 def _wrap_exception_and_reraise(exception):
-    message = "%s: %s" % (exception.__class__.__name__, exception.message)
+    message = "%s: %s" % (exception.__class__.__name__, exception.args[0])
 
     raise exc.MistralException(message)
 
@@ -355,7 +355,9 @@ class EngineClient(base.Engine):
 
     @wrap_messaging_exception
     def rerun_workflow(self, wf_ex_id, task_ex_id, reset=True):
-        """Rerun the workflow with the given execution id
+        """Rerun the workflow.
+
+        This method reruns workflow with the given execution id
         at the specific task execution id.
 
         :param wf_ex_id: Workflow execution id.

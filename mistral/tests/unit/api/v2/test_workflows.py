@@ -254,7 +254,7 @@ class TestWorkflowsController(base.FunctionalTest):
         )
 
         self.assertEqual(400, resp.status_int)
-        self.assertIn("Invalid DSL", resp.body)
+        self.assertIn("Invalid DSL", resp.body.decode())
 
     @mock.patch.object(db_api, "create_workflow_definition")
     def test_post(self, mock_mtd):
@@ -325,7 +325,7 @@ class TestWorkflowsController(base.FunctionalTest):
         )
 
         self.assertEqual(400, resp.status_int)
-        self.assertIn("Invalid DSL", resp.body)
+        self.assertIn("Invalid DSL", resp.body.decode())
 
     @mock.patch.object(db_api, "delete_workflow_definition", MOCK_DELETE)
     @mock.patch.object(db_api, "get_workflow_definition", MOCK_WF)
@@ -398,7 +398,7 @@ class TestWorkflowsController(base.FunctionalTest):
 
         self.assertEqual(400, resp.status_int)
 
-        self.assertIn("Limit must be positive", resp.body)
+        self.assertIn("Limit must be positive", resp.body.decode())
 
     def test_get_all_pagination_limit_not_integer(self):
         resp = self.app.get(
@@ -408,7 +408,7 @@ class TestWorkflowsController(base.FunctionalTest):
 
         self.assertEqual(400, resp.status_int)
 
-        self.assertIn("unable to convert to int", resp.body)
+        self.assertIn("unable to convert to int", resp.body.decode())
 
     def test_get_all_pagination_invalid_sort_dirs_length(self):
         resp = self.app.get(
@@ -420,7 +420,7 @@ class TestWorkflowsController(base.FunctionalTest):
 
         self.assertIn(
             "Length of sort_keys must be equal or greater than sort_dirs",
-            resp.body
+            resp.body.decode()
         )
 
     def test_get_all_pagination_unknown_direction(self):
@@ -431,7 +431,7 @@ class TestWorkflowsController(base.FunctionalTest):
 
         self.assertEqual(400, resp.status_int)
 
-        self.assertIn("Unknown sort direction", resp.body)
+        self.assertIn("Unknown sort direction", resp.body.decode())
 
     @mock.patch('mistral.db.v2.api.get_workflow_definitions')
     def test_get_all_with_fields_filter(self, mock_get_db_wfs):
@@ -461,7 +461,7 @@ class TestWorkflowsController(base.FunctionalTest):
 
         self.assertIn(
             "nonexist are invalid",
-            resp.body
+            resp.body.decode()
         )
 
     def test_validate(self):
