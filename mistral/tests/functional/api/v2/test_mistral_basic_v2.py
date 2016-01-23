@@ -338,12 +338,44 @@ class WorkflowTestsV2(base.TestCase):
         resp, body = self.client.create_cron_trigger(
             tr_name, name, None, '5 * * * *')
 
-        self.assertRaises(exceptions.BadRequest,
-                          self.client.delete_obj,
-                          'workflows', name)
+        try:
+            self.assertRaises(
+                exceptions.BadRequest,
+                self.client.delete_obj,
+                'workflows',
+                name
+            )
+        finally:
+            self.client.delete_obj('cron_triggers', tr_name)
+            self.client.triggers.remove(tr_name)
 
-        self.client.delete_obj('cron_triggers', tr_name)
-        self.client.triggers.remove(tr_name)
+    @test.attr(type='negative')
+    def test_delete_wf_with_trigger_associate_in_other_tenant(self):
+        tr_name = 'trigger'
+        _, body = self.client.create_workflow('wf_v2.yaml', scope='public')
+        name = body['workflows'][0]['name']
+        resp, body = self.alt_client.create_cron_trigger(
+            tr_name,
+            name,
+            None,
+            '5 * * * *'
+        )
+
+        try:
+            exception = self.assertRaises(
+                exceptions.BadRequest,
+                self.client.delete_obj,
+                'workflows',
+                name
+            )
+
+            self.assertIn(
+                "Can't delete workflow that has triggers associated",
+                exception.resp_body['faultstring']
+            )
+        finally:
+            self.alt_client.delete_obj('cron_triggers', tr_name)
+            self.alt_client.triggers.remove(tr_name)
 
     @test.attr(type='negative')
     def test_delete_nonexistent_wf(self):
@@ -556,6 +588,32 @@ class ExecutionTestsV2(base.TestCase):
                           self.client.create_execution,
                           self.reverse_wf['name'],
                           params={"task_name": "nonexist"})
+
+    @test.attr(type='sanity')
+    def test_action_ex_concurrency(self):
+        resp, wf = self.client.create_workflow("wf_action_ex_concurrency.yaml")
+        self.assertEqual(201, resp.status)
+
+        wf_name = wf['workflows'][0]['name']
+        resp, execution = self.client.create_execution(wf_name)
+
+        self.assertEqual(201, resp.status)
+        self.assertEqual('RUNNING', execution['state'])
+
+        self.client.wait_execution_success(execution)
+
+    @test.attr(type='sanity')
+    def test_task_ex_concurrency(self):
+        resp, wf = self.client.create_workflow("wf_task_ex_concurrency.yaml")
+        self.assertEqual(201, resp.status)
+
+        wf_name = wf['workflows'][0]['name']
+        resp, execution = self.client.create_execution(wf_name)
+
+        self.assertEqual(201, resp.status)
+        self.assertEqual('RUNNING', execution['state'])
+
+        self.client.wait_execution(execution, target_state='ERROR')
 
 
 class CronTriggerTestsV2(base.TestCase):

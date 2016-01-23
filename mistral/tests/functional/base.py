@@ -20,7 +20,6 @@ import mock
 import six
 
 from tempest import clients
-from tempest.common import credentials_factory as creds
 from tempest import config
 from tempest import test as test
 from tempest_lib import auth
@@ -89,14 +88,19 @@ class MistralClientBase(rest_client.RestClient):
         return resp, json.loads(body)
 
     def wait_execution_success(self, ex_body, timeout=180, url='executions'):
+        return self.wait_execution(ex_body, timeout=timeout, url=url)
+
+    def wait_execution(self, ex_body, timeout=180, url='executions',
+                       target_state='SUCCESS'):
         start_time = time.time()
 
-        expected_states = ['SUCCESS', 'RUNNING']
+        expected_states = [target_state, 'RUNNING']
 
-        while ex_body['state'] != 'SUCCESS':
+        while ex_body['state'] != target_state:
             if time.time() - start_time > timeout:
-                msg = ("Execution exceeds timeout {0} to change state "
-                       "to SUCCESS. Execution: {1}".format(timeout, ex_body))
+                msg = ("Execution exceeds timeout {0} "
+                       "to change state to {1}. "
+                       "Execution: {2}".format(timeout, target_state, ex_body))
                 raise exceptions.TimeoutException(msg)
 
             _, ex_body = self.get_object(url, ex_body['id'])
@@ -149,8 +153,11 @@ class MistralClientV2(MistralClientBase):
 
         return resp, json.loads(body)
 
-    def create_workflow(self, yaml_file):
-        resp, body = self.post_request('workflows', yaml_file)
+    def create_workflow(self, yaml_file, scope=None):
+        if scope:
+            resp, body = self.post_request('workflows?scope=public', yaml_file)
+        else:
+            resp, body = self.post_request('workflows', yaml_file)
 
         for wf in json.loads(body)['workflows']:
             self.workflows.append(wf['name'])
@@ -236,6 +243,9 @@ class AuthProv(auth.KeystoneV2AuthProvider):
 
 
 class TestCase(test.BaseTestCase):
+
+    credentials = ['primary', 'alt']
+
     @classmethod
     def resource_setup(cls):
         """Client authentication.
@@ -248,15 +258,16 @@ class TestCase(test.BaseTestCase):
         if 'WITHOUT_AUTH' in os.environ:
             cls.mgr = mock.MagicMock()
             cls.mgr.auth_provider = AuthProv()
+            cls.alt_mgr = cls.mgr
         else:
-            cls.creds = creds.get_configured_credentials(
-                credential_type='user'
-            )
-            cls.mgr = clients.Manager(cls.creds)
+            cls.mgr = cls.manager
+            cls.alt_mgr = cls.alt_manager
 
         if cls._service == 'workflowv2':
             cls.client = MistralClientV2(
                 cls.mgr.auth_provider, cls._service)
+            cls.alt_client = MistralClientV2(
+                cls.alt_mgr.auth_provider, cls._service)
 
     def setUp(self):
         super(TestCase, self).setUp()

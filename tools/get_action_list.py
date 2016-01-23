@@ -24,18 +24,22 @@ from cinderclient.v2 import client as cinderclient
 from glanceclient.v2 import client as glanceclient
 from heatclient.openstack.common.apiclient import base as heat_base
 from heatclient.v1 import client as heatclient
+from ironicclient.common import base as ironic_base
+from ironicclient.v1 import client as ironicclient
 from keystoneclient import base as keystone_base
 from keystoneclient.v3 import client as keystoneclient
 from novaclient import client as novaclient
 from novaclient.openstack.common.apiclient import base as nova_base
 from troveclient import base as trove_base
 from troveclient.v1 import client as troveclient
-from ironicclient.common import base as ironic_base
-from ironicclient.v1 import client as ironicclient
 
 # TODO(nmakhotkin): Find a rational way to do it for neutron.
 # TODO(nmakhotkin): Implement recursive way of searching for managers
 # TODO(nmakhotkin): (e.g. keystone).
+# TODO(dprince): Need to update ironic_inspector_client before we can
+# plug it in cleanly here.
+# TODO(dprince): Swiftclient doesn't currently support discovery
+# like we do in this class.
 
 """It is simple CLI tool which allows to see and update mapping.json file
 if needed. mapping.json contains all allowing OpenStack actions sorted by
@@ -65,6 +69,7 @@ BASE_KEYSTONE_MANAGER = keystone_base.Manager
 BASE_CINDER_MANAGER = cinder_base.HookableMixin
 BASE_TROVE_MANAGER = trove_base.Manager
 BASE_IRONIC_MANAGER = ironic_base.Manager
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -138,11 +143,14 @@ def get_ceilometer_client(**kwargs):
 def get_cinder_client(**kwargs):
     return cinderclient.Client()
 
+
 def get_trove_client(**kwargs):
     return troveclient.Client('username', 'password')
 
+
 def get_ironic_client(**kwargs):
     return ironicclient.Client("http://127.0.0.1:6385/")
+
 
 CLIENTS = {
     'nova': get_nova_client,
@@ -151,9 +159,11 @@ CLIENTS = {
     'cinder': get_cinder_client,
     'keystone': get_keystone_client,
     'glance': get_glance_client,
-    'trove' : get_trove_client,
-    'ironic' : get_ironic_client,
+    'trove': get_trove_client,
+    'ironic': get_ironic_client,
     # 'neutron': get_nova_client
+    # 'baremetal_introspection': ...
+    # 'swift': ...
 }
 BASE_MANAGERS = {
     'nova': BASE_NOVA_MANAGER,
@@ -165,6 +175,8 @@ BASE_MANAGERS = {
     'trove': BASE_TROVE_MANAGER,
     'ironic': BASE_IRONIC_MANAGER,
     # 'neutron': BASE_NOVA_MANAGER
+    # 'baremetal_introspection': ...
+    # 'swift': ...
 }
 NAMESPACES = {
     'glance': GLANCE_NAMESPACE_LIST,

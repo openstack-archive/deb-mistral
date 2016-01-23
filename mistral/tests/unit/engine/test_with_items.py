@@ -14,7 +14,6 @@
 
 import copy
 from oslo_config import cfg
-from oslo_log import log as logging
 
 from mistral.actions import base as action_base
 from mistral.db.v2 import api as db_api
@@ -30,7 +29,6 @@ from mistral.workflow import utils as wf_utils
 
 # TODO(nmakhotkin) Need to write more tests.
 
-LOG = logging.getLogger(__name__)
 # Use the set_default method to set value otherwise in certain test cases
 # the change in value is not permanent.
 cfg.CONF.set_default('auth_enable', False, group='pecan')
@@ -200,7 +198,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         # check is not depend on order of items.
         result = data_flow.get_task_execution_result(task1)
 
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('John', result)
         self.assertIn('Ivan', result)
@@ -263,7 +261,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         task1 = self._assert_single_item(tasks, name='task1')
         result = data_flow.get_task_execution_result(task1)
 
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('Hello, John!', result)
         self.assertIn('Hello, Ivan!', result)
@@ -294,7 +292,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         # check is not depend on order of items.
         result = data_flow.get_task_execution_result(task1)
 
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('a 1', result)
         self.assertIn('b 2', result)
@@ -331,7 +329,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         task_ex = db_api.get_task_execution(task_ex.id)
         result = data_flow.get_task_execution_result(task_ex)
 
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('John', result)
         self.assertIn('Ivan', result)
@@ -505,7 +503,7 @@ class WithItemsEngineTest(base.EngineTestCase):
 
         result = data_flow.get_task_execution_result(task1)
 
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('Guy', result)
 
@@ -582,7 +580,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         # check is not depend on order of items.
         result = data_flow.get_task_execution_result(task_ex)
 
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('John', result)
         self.assertIn('Ivan', result)
@@ -627,7 +625,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         # check is not depend on order of items.
         result = data_flow.get_task_execution_result(task_ex)
 
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('John', result)
         self.assertIn('Ivan', result)
@@ -740,7 +738,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         # Since we know that we can receive results in random order,
         # check is not depend on order of items.
         result = data_flow.get_task_execution_result(task_ex)
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('John', result)
         self.assertIn('Ivan', result)
@@ -850,7 +848,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         # Since we know that we can receive results in random order,
         # check is not depend on order of items.
         result = data_flow.get_task_execution_result(task_ex)
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
 
         self.assertIn('John', result)
         self.assertIn('Ivan', result)
@@ -889,7 +887,7 @@ class WithItemsEngineTest(base.EngineTestCase):
         result = data_flow.get_task_execution_result(task_ex)
 
         self.assertEqual(states.SUCCESS, task_ex.state)
-        self.assertTrue(isinstance(result, list))
+        self.assertIsInstance(result, list)
         self.assertIn('John', result)
         self.assertIn('Ivan', result)
 

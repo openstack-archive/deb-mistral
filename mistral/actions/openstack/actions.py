@@ -16,15 +16,16 @@ from ceilometerclient.v2 import client as ceilometerclient
 from cinderclient.v2 import client as cinderclient
 from glanceclient.v2 import client as glanceclient
 from heatclient.v1 import client as heatclient
+from ironic_inspector_client import v1 as ironic_inspector_client
 from ironicclient.v1 import client as ironicclient
 from keystoneclient import httpclient
 from keystoneclient.v3 import client as keystoneclient
 from neutronclient.v2_0 import client as neutronclient
 from novaclient import client as novaclient
-from troveclient import client as troveclient
-
 from oslo_config import cfg
 from oslo_log import log
+from swiftclient import client as swift_client
+from troveclient import client as troveclient
 
 from mistral.actions.openstack import base
 from mistral import context
@@ -290,3 +291,39 @@ class IronicAction(base.OpenStackAction):
     @classmethod
     def _get_fake_client(cls):
         return cls._client_class("http://127.0.0.1:6385/")
+
+
+class BaremetalIntrospectionAction(base.OpenStackAction):
+    _client_class = ironic_inspector_client.ClientV1
+
+    def _get_client(self):
+        ctx = context.ctx()
+
+        LOG.debug("Baremetal introspection action security context: %s" % ctx)
+
+        inspector_endpoint = keystone_utils.get_endpoint_for_project(
+            'baremetal-introspection')
+
+        return self._client_class(
+            api_version=1,
+            inspector_url=inspector_endpoint.url,
+            auth_token=ctx.auth_token,
+        )
+
+
+class SwiftAction(base.OpenStackAction):
+    _client_class = swift_client.Connection
+
+    def _get_client(self):
+        ctx = context.ctx()
+
+        LOG.debug("Swift action security context: %s" % ctx)
+
+        swift_endpoint = keystone_utils.get_endpoint_for_project('swift')
+
+        kwargs = {
+            'preauthurl': swift_endpoint.url % {'tenant_id': ctx.project_id},
+            'preauthtoken': ctx.auth_token
+        }
+
+        return self._client_class(**kwargs)

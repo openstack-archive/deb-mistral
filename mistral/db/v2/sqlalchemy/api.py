@@ -22,6 +22,7 @@ from oslo_db import sqlalchemy as oslo_sqlalchemy
 from oslo_db.sqlalchemy import utils as db_utils
 from oslo_log import log as logging
 from oslo_utils import timeutils
+from oslo_utils import uuidutils
 import sqlalchemy as sa
 
 from mistral.db.sqlalchemy import base as b
@@ -91,15 +92,24 @@ def transaction():
 
 @b.session_aware()
 def acquire_lock(model, id, session=None):
-    if b.get_driver_name() != 'sqlite':
-        query = _secure_query(model).filter("id = '%s'" % id)
+    # Expire all so all objects queried after lock is acquired
+    # will be up-to-date from the DB and not from cache.
+    session.expire_all()
 
-        query.update(
-            {'updated_at': timeutils.utcnow()},
-            synchronize_session='fetch',
-        )
+    if b.get_driver_name() != 'sqlite':
+        entity = _get_one_entity(model, id)
+        entity.update({'updated_at': timeutils.utcnow()})
+
     else:
         sqlite_lock.acquire_lock(id, session)
+        entity = _get_one_entity(model, id)
+
+    return entity
+
+
+def _get_one_entity(model, id):
+    # Get entity by ID and expect exactly one object.
+    return _secure_query(model).filter(model.id == id).one()
 
 
 def _secure_query(model, *columns):
@@ -247,12 +257,20 @@ WORKFLOW_COL_MAPPING = {
 }
 
 
-def get_workflow_definition(name):
-    wf_def = _get_workflow_definition(name)
+def get_workflow_definition(identifier):
+    """Gets workflow definition by name or uuid.
+
+    :param identifier: Identifier could be in the format of plain string or
+                       uuid.
+    :return: Workflow definition.
+    """
+    wf_def = (_get_workflow_definition_by_id(identifier)
+              if uuidutils.is_uuid_like(identifier)
+              else _get_workflow_definition(identifier))
 
     if not wf_def:
         raise exc.NotFoundException(
-            "Workflow not found [workflow_name=%s]" % name
+            "Workflow not found [workflow_identifier=%s]" % identifier
         )
 
     return wf_def
@@ -314,12 +332,31 @@ def create_workflow_definition(values, session=None):
 
 
 @b.session_aware()
-def update_workflow_definition(name, values, session=None):
-    wf_def = _get_workflow_definition(name)
+def update_workflow_definition(identifier, values, session=None):
+    wf_def = get_workflow_definition(identifier)
 
-    if not wf_def:
-        raise exc.NotFoundException(
-            "Workflow not found [workflow_name=%s]" % name)
+    if wf_def.project_id != security.get_project_id():
+        raise exc.NotAllowedException(
+            "Can not update workflow of other tenants. "
+            "[workflow_identifier=%s]" % identifier
+        )
+
+    if wf_def.is_system:
+        raise exc.InvalidActionException(
+            "Attempt to modify a system workflow: %s" % identifier
+        )
+
+    if wf_def.scope == 'public' and values['scope'] == 'private':
+        cron_triggers = _get_associated_cron_triggers(identifier)
+
+        try:
+            [get_cron_trigger(name) for name in cron_triggers]
+        except exc.NotFoundException:
+            raise exc.NotAllowedException(
+                "Can not update scope of workflow that has triggers "
+                "associated in other tenants."
+                "[workflow_identifier=%s]" % identifier
+            )
 
     wf_def.update(values.copy())
 
@@ -335,30 +372,42 @@ def create_or_update_workflow_definition(name, values, session=None):
 
 
 @b.session_aware()
-def delete_workflow_definition(name, session=None):
-    wf_def = _get_workflow_definition(name)
+def delete_workflow_definition(identifier, session=None):
+    wf_def = get_workflow_definition(identifier)
 
-    if not wf_def:
-        raise exc.NotFoundException(
-            "Workflow not found [workflow_name=%s]" % name
+    if wf_def.project_id != security.get_project_id():
+        raise exc.NotAllowedException(
+            "Can not delete workflow of other users. [workflow_identifier=%s]"
+            % identifier
         )
 
-    cron_triggers = _get_associated_cron_triggers(name)
+    if wf_def.is_system:
+        msg = "Attempt to delete a system workflow: %s" % identifier
+        raise exc.DataAccessException(msg)
+
+    cron_triggers = _get_associated_cron_triggers(identifier)
 
     if cron_triggers:
         raise exc.DBException(
-            "Can't delete workflow that has triggers [workflow_name=%s],"
-            "[cron_trigger_name(s)=%s]" % (name, ', '.join(cron_triggers))
+            "Can't delete workflow that has triggers associated. "
+            "[workflow_identifier=%s], [cron_trigger_name(s)=%s]" %
+            (identifier, ', '.join(cron_triggers))
         )
 
     session.delete(wf_def)
 
 
-def _get_associated_cron_triggers(wf_name):
-    cron_triggers = _secure_query(
+def _get_associated_cron_triggers(wf_identifier):
+    criterion = (
+        {'workflow_id': wf_identifier}
+        if uuidutils.is_uuid_like(wf_identifier)
+        else {'workflow_name': wf_identifier}
+    )
+
+    cron_triggers = b.model_query(
         models.CronTrigger,
-        models.CronTrigger.name
-    ).filter_by(workflow_name=wf_name).all()
+        [models.CronTrigger.name]
+    ).filter_by(**criterion).all()
 
     return [t[0] for t in cron_triggers]
 

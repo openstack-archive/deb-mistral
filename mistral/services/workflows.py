@@ -16,6 +16,8 @@ from mistral.db.v2 import api as db_api
 from mistral import exceptions as exc
 from mistral import utils
 from mistral.workbook import parser as spec_parser
+from mistral.workflow import data_flow
+from mistral.workflow import states
 
 
 STD_WF_PATH = 'resources/workflows'
@@ -78,8 +80,15 @@ def _append_all_workflows(definition, is_system, scope, wf_list_spec, db_wfs):
         )
 
 
-def update_workflows(definition, scope='private'):
+def update_workflows(definition, scope='private', identifier=None):
     wf_list_spec = spec_parser.get_workflow_list_spec_from_yaml(definition)
+    wfs = wf_list_spec.get_workflows()
+
+    if identifier and len(wfs) > 1:
+        raise exc.InputException(
+            "More than one workflows are not supported for update with UUID "
+            "provided."
+        )
 
     db_wfs = []
 
@@ -88,10 +97,27 @@ def update_workflows(definition, scope='private'):
             db_wfs.append(_update_workflow(
                 wf_spec,
                 definition,
-                scope
+                scope,
+                identifier=identifier
             ))
 
     return db_wfs
+
+
+def update_workflow_execution_env(wf_ex, env):
+    if not env:
+        return wf_ex
+
+    if wf_ex.state not in [states.IDLE, states.PAUSED, states.ERROR]:
+        raise exc.NotAllowedException(
+            'Updating env to workflow execution is only permitted if '
+            'it is in idle, paused, or re-runnable state.'
+        )
+
+    wf_ex.params['env'] = utils.merge_dicts(wf_ex.params['env'], env)
+    data_flow.add_environment_to_context(wf_ex)
+
+    return wf_ex
 
 
 def _get_workflow_values(wf_spec, definition, scope, is_system=False):
@@ -113,14 +139,10 @@ def _create_workflow(wf_spec, definition, scope, is_system):
     )
 
 
-def _update_workflow(wf_spec, definition, scope):
-    workflow = db_api.load_workflow_definition(wf_spec.get_name())
-
-    if workflow and workflow.is_system:
-        raise exc.InvalidActionException(
-            "Attempt to modify a system workflow: %s" %
-            workflow.name
-        )
+def _update_workflow(wf_spec, definition, scope, identifier=None):
     values = _get_workflow_values(wf_spec, definition, scope)
 
-    return db_api.update_workflow_definition(values['name'], values)
+    return db_api.update_workflow_definition(
+        identifier if identifier else values['name'],
+        values
+    )

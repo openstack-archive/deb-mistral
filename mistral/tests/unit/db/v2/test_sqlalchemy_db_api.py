@@ -243,6 +243,20 @@ WF_DEFINITIONS = [
 ]
 
 
+CRON_TRIGGER = {
+    'name': 'trigger1',
+    'pattern': '* * * * *',
+    'workflow_name': 'my_wf1',
+    'workflow_id': None,
+    'workflow_input': {},
+    'next_execution_time':
+    datetime.datetime.now() + datetime.timedelta(days=1),
+    'remaining_executions': 42,
+    'scope': 'private',
+    'project_id': '<default-project>'
+}
+
+
 class WorkflowDefinitionTest(SQLAlchemyTest):
     def test_create_and_get_and_load_workflow_definition(self):
         created = db_api.create_workflow_definition(WF_DEFINITIONS[0])
@@ -256,6 +270,12 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
         self.assertEqual(created, fetched)
 
         self.assertIsNone(db_api.load_workflow_definition("not-existing-wf"))
+
+    def test_get_workflow_definition_with_uuid(self):
+        created = db_api.create_workflow_definition(WF_DEFINITIONS[0])
+        fetched = db_api.get_workflow_definition(created.id)
+
+        self.assertEqual(created, fetched)
 
     def test_create_workflow_definition_duplicate_without_auth(self):
         cfg.CONF.set_default('auth_enable', False, group='pecan')
@@ -272,9 +292,10 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
 
         self.assertIsNone(created.updated_at)
 
+        # Update workflow using workflow name as identifier.
         updated = db_api.update_workflow_definition(
             created['name'],
-            {'definition': 'my new definition'}
+            {'definition': 'my new definition', 'scope': 'private'}
         )
 
         self.assertEqual('my new definition', updated.definition)
@@ -283,6 +304,37 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
 
         self.assertEqual(updated, fetched)
         self.assertIsNotNone(fetched.updated_at)
+
+        # Update workflow using workflow uuid as identifier.
+        updated = db_api.update_workflow_definition(
+            created['id'],
+            {
+                'name': 'updated_name',
+                'definition': 'my new definition',
+                'scope': 'private'
+            }
+        )
+
+        self.assertEqual('updated_name', updated.name)
+        self.assertEqual('my new definition', updated.definition)
+
+        fetched = db_api.get_workflow_definition(created['id'])
+
+        self.assertEqual(updated, fetched)
+        self.assertIsNotNone(fetched.updated_at)
+
+    def test_update_other_project_workflow_definition(self):
+        created = db_api.create_workflow_definition(WF_DEFINITIONS[0])
+
+        # Switch to another project.
+        auth_context.set_ctx(test_base.get_context(default=False))
+
+        self.assertRaises(
+            exc.NotAllowedException,
+            db_api.update_workflow_definition,
+            created.name,
+            {'definition': 'my new definition', 'scope': 'private'}
+        )
 
     def test_create_or_update_workflow_definition(self):
         name = WF_DEFINITIONS[0]['name']
@@ -299,7 +351,7 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
 
         updated = db_api.create_or_update_workflow_definition(
             created.name,
-            {'definition': 'my new definition'}
+            {'definition': 'my new definition', 'scope': 'private'}
         )
 
         self.assertEqual('my new definition', updated.definition)
@@ -311,6 +363,34 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
         fetched = db_api.get_workflow_definition(created.name)
 
         self.assertEqual(updated, fetched)
+
+    def test_update_wf_scope_cron_trigger_associated_in_diff_tenant(self):
+        created = db_api.create_workflow_definition(WF_DEFINITIONS[0])
+
+        # Create a new user.
+        auth_context.set_ctx(test_base.get_context(default=False))
+
+        db_api.create_cron_trigger(CRON_TRIGGER)
+
+        auth_context.set_ctx(test_base.get_context(default=True))
+
+        self.assertRaises(
+            exc.NotAllowedException,
+            db_api.update_workflow_definition,
+            created['name'],
+            {'scope': 'private'}
+        )
+
+    def test_update_wf_scope_cron_trigger_associated_in_same_tenant(self):
+        created = db_api.create_workflow_definition(WF_DEFINITIONS[0])
+
+        db_api.create_cron_trigger(CRON_TRIGGER)
+        updated = db_api.update_workflow_definition(
+            created['name'],
+            {'scope': 'private'}
+        )
+
+        self.assertEqual('private', updated.scope)
 
     def test_get_workflow_definitions(self):
         created0 = db_api.create_workflow_definition(WF_DEFINITIONS[0])
@@ -329,17 +409,33 @@ class WorkflowDefinitionTest(SQLAlchemyTest):
         self.assertEqual(created1, fetched[1])
 
     def test_delete_workflow_definition(self):
+        created0 = db_api.create_workflow_definition(WF_DEFINITIONS[0])
+        created1 = db_api.create_workflow_definition(WF_DEFINITIONS[1])
+
+        fetched0 = db_api.get_workflow_definition(created0.name)
+        fetched1 = db_api.get_workflow_definition(created1.id)
+
+        self.assertEqual(created0, fetched0)
+        self.assertEqual(created1, fetched1)
+
+        for identifier in [created0.name, created1.id]:
+            db_api.delete_workflow_definition(identifier)
+
+            self.assertRaises(
+                exc.NotFoundException,
+                db_api.get_workflow_definition,
+                identifier
+            )
+
+    def test_delete_other_project_workflow_definition(self):
         created = db_api.create_workflow_definition(WF_DEFINITIONS[0])
 
-        fetched = db_api.get_workflow_definition(created.name)
-
-        self.assertEqual(created, fetched)
-
-        db_api.delete_workflow_definition(created.name)
+        # Switch to another project.
+        auth_context.set_ctx(test_base.get_context(default=False))
 
         self.assertRaises(
-            exc.NotFoundException,
-            db_api.get_workflow_definition,
+            exc.NotAllowedException,
+            db_api.delete_workflow_definition,
             created.name
         )
 

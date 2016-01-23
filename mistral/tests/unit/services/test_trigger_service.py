@@ -90,6 +90,21 @@ class TriggerServiceV2Test(base.DbTestCase):
 
         self.assertEqual(datetime.datetime(2010, 8, 25, 0, 10), next_time)
 
+    def test_trigger_create_with_wf_id(self):
+        trigger = t_s.create_cron_trigger(
+            'test',
+            None,
+            {},
+            {},
+            '*/5 * * * *',
+            None,
+            None,
+            datetime.datetime(2010, 8, 25),
+            workflow_id=self.wf.id
+        )
+
+        self.assertEqual(self.wf.name, trigger.workflow_name)
+
     def test_trigger_create_the_same_first_time_or_count(self):
         t_s.create_cron_trigger(
             'test',
@@ -281,7 +296,21 @@ class TriggerServiceV2Test(base.DbTestCase):
             datetime.datetime(2010, 8, 25)
         )
 
-        eventlet.sleep(10)
+        # Wait until there are 'trigger_count' executions.
+        self._await(
+            lambda: self._wait_for_single_execution_with_multiple_processes(
+                trigger_count,
+                start_wf_mock
+            )
+        )
 
-        self.assertEqual(True, start_wf_mock.called)
+        # Wait some more and make sure there are no more than 'trigger_count'
+        # executions.
+        eventlet.sleep(5)
         self.assertEqual(trigger_count, start_wf_mock.call_count)
+
+    def _wait_for_single_execution_with_multiple_processes(self, trigger_count,
+                                                           start_wf_mock):
+        eventlet.sleep(1)
+
+        return trigger_count == start_wf_mock.call_count

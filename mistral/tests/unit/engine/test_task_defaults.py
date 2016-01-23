@@ -14,8 +14,6 @@
 
 import datetime as dt
 from oslo_config import cfg
-from oslo_log import log as logging
-import testtools
 
 from mistral.db.v2 import api as db_api
 from mistral.services import scheduler
@@ -24,7 +22,6 @@ from mistral.tests.unit.engine import base
 from mistral.workflow import states
 
 
-LOG = logging.getLogger(__name__)
 # Use the set_default method to set value otherwise in certain test cases
 # the change in value is not permanent.
 cfg.CONF.set_default('auth_enable', False, group='pecan')
@@ -129,7 +126,6 @@ class TaskDefaultsReverseWorkflowEngineTest(base.EngineTestCase):
             task1.runtime_context['retry_task_policy']['retry_no'] > 0
         )
 
-    @testtools.skip("Fix 'timeout' policy.")
     def test_task_defaults_timeout_policy(self):
         wf_text = """---
         version: '2.0'
@@ -164,6 +160,9 @@ class TaskDefaultsReverseWorkflowEngineTest(base.EngineTestCase):
         self.assertEqual(1, len(tasks))
 
         self._assert_single_item(tasks, name='task1', state=states.ERROR)
+
+        task_ex = db_api.get_task_execution(tasks[0].id)
+        self.assertIn("Task timed out", task_ex.state_info)
 
     def test_task_defaults_wait_policies(self):
         wf_text = """---

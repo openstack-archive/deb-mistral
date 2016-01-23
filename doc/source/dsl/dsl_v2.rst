@@ -891,20 +891,20 @@ YAML example
     version: '2.0'
 
     error_email:
-    input:
-      - execution_id
-    base: std.email
-    base-input:
-      to_addrs: ['admin@mywebsite.org']
-      subject: 'Something went wrong with your Mistral workflow :('
-      body: |
-          Please take a look at Mistral Dashboard to find out what's wrong
-          with your workflow execution <% $.execution_id %>.
-          Everything's going to be alright!
-          -- Sincerely, Mistral Team.
-      from_addr: 'mistral@openstack.org'
-      smtp_server: 'smtp.google.com'
-      smtp_password: 'SECRET'
+      input:
+        - execution_id
+      base: std.email
+      base-input:
+        to_addrs: ['admin@mywebsite.org']
+        subject: 'Something went wrong with your Mistral workflow :('
+        body: |
+            Please take a look at Mistral Dashboard to find out what's wrong
+            with your workflow execution <% $.execution_id %>.
+            Everything's going to be alright!
+            -- Sincerely, Mistral Team.
+        from_addr: 'mistral@openstack.org'
+        smtp_server: 'smtp.google.com'
+        smtp_password: 'SECRET'
 
 Once this action is uploaded to Mistral any workflow will be able to use
 it as follows:
@@ -981,24 +981,24 @@ YAML example
     workflows:
       local_workflow1:
         type: direct
-       
+
         tasks:
           task1:
             action: local_action str1='Hi' str2=' Mistral!'
             on-complete:
               - task2
 
-        task2:
-          action: global_action
-          ...
-       
+          task2:
+            action: global_action
+            ...
+
       local_workflow2:
         type: reverse
 
         tasks:
           task1:
             workflow: local_workflow1
-          
+
           task2:
             workflow: global_workflow param1='val1' param2='val2'
             requires: [task1]

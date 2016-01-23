@@ -16,14 +16,13 @@
 import contextlib
 
 from oslo_db import api as db_api
-from oslo_log import log as logging
+
 
 _BACKEND_MAPPING = {
     'sqlalchemy': 'mistral.db.v2.sqlalchemy.api',
 }
 
 IMPL = db_api.DBAPI('sqlalchemy', backend_mapping=_BACKEND_MAPPING)
-LOG = logging.getLogger(__name__)
 
 
 def setup_db():
@@ -63,7 +62,7 @@ def transaction():
 
 
 def acquire_lock(model, id):
-    IMPL.acquire_lock(model, id)
+    return IMPL.acquire_lock(model, id)
 
 
 # Workbooks.
@@ -103,8 +102,8 @@ def delete_workbooks(**kwargs):
 
 # Workflow definitions.
 
-def get_workflow_definition(name):
-    return IMPL.get_workflow_definition(name)
+def get_workflow_definition(identifier):
+    return IMPL.get_workflow_definition(identifier)
 
 
 def get_workflow_definition_by_id(id):
@@ -132,16 +131,16 @@ def create_workflow_definition(values):
     return IMPL.create_workflow_definition(values)
 
 
-def update_workflow_definition(name, values):
-    return IMPL.update_workflow_definition(name, values)
+def update_workflow_definition(identifier, values):
+    return IMPL.update_workflow_definition(identifier, values)
 
 
 def create_or_update_workflow_definition(name, values):
     return IMPL.create_or_update_workflow_definition(name, values)
 
 
-def delete_workflow_definition(name):
-    IMPL.delete_workflow_definition(name)
+def delete_workflow_definition(identifier):
+    IMPL.delete_workflow_definition(identifier)
 
 
 def delete_workflow_definitions(**kwargs):
