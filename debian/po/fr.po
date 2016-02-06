@@ -1,48 +1,47 @@
-# Translation of glance debconf templates to French. 
+# Translation of manila debconf templates to French.
 # Copyright (C) 2013, French l10n team <debian-l10n-french@lists.debian.org>
-# This file is distributed under the same license as the GLANCE package.
-# Julien Patriarca <leatherface@debian.org>, 2013.
+# This file is distributed under the same license as the MANILA package.
 #
+# Julien Patriarca <leatherface@debian.org>, 2013.
+# Jean-Pierre Giraud <jean-pierregiraud@neuf.fr>, 2015.
 msgid ""
 msgstr ""
-"Project-Id-Version: glance\n"
-"Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
-"POT-Creation-Date: 2015-10-14 15:26+0000\n"
-"PO-Revision-Date: 2013-10-26 18:35+0100\n"
-"Last-Translator: Julien Patriarca <leatherface@debian.org>\n"
-"Language-Team: FRENCH <debian-l10n-french@lists.debian.org>\n"
+"Project-Id-Version: manila\n"
+"Report-Msgid-Bugs-To: manila@packages.debian.org\n"
+"POT-Creation-Date: 2015-11-10 14:57+0000\n"
+"PO-Revision-Date: 2015-11-28 14:49+0100\n"
+"Last-Translator: Jean-Pierre Giraud <jean-pierregiraud@neuf.fr>\n"
+"Language-Team: French <debian-l10n-french@lists.debian.org>\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 1.5.4\n"
+"X-Generator: Lokalize 1.5\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
 #. Type: boolean
 #. Description
-#: ../mistral-common.templates:2001
-#, fuzzy
-#| msgid "Set up a database for Glance?"
-msgid "Set up a database for Mistral?"
-msgstr "Installer une base de données pour Glance ?"
+#: ../manila-common.templates:2001
+msgid "Set up a database for Manila?"
+msgstr "Installer une base de données pour Manila ?"
 
 #. Type: boolean
 #. Description
-#: ../mistral-common.templates:2001
-#, fuzzy
+#: ../manila-common.templates:2001
 #| msgid ""
-#| "No database has been set up for glance-registry or glance-api to use. "
+#| "No database has been set up for manila-registry or glance-api to use. "
 #| "Before continuing, you should make sure you have the following "
 #| "information:"
 msgid ""
-"No database has been set up for Mistral to use. Before continuing, you "
-"should make sure you have the following information:"
+"No database has been set up for Manila to use. Before continuing, you should "
+"make sure you have the following information:"
 msgstr ""
-"Aucune base de données n'a été installée pour le registre de glance ou pour "
-"l'API de Glance. Avant de continuer, assurez vous d'avoir :"
+"Aucune base de données n'a été installée pour Manila. "
+"Avant de continuer, assurez-vous d'avoir :"
 
 #. Type: boolean
 #. Description
-#: ../mistral-common.templates:2001
+#: ../manila-common.templates:2001
 msgid ""
 " * the type of database that you want to use;\n"
 " * the database server hostname (that server must allow TCP connections from "
@@ -50,56 +49,54 @@ msgid ""
 "   machine);\n"
 " * a username and password to access the database."
 msgstr ""
-" - Le type de base de données que vous souhaitez utiliser ;\n"
-" - le nom d'hôte du serveur de base de données (ce serveur\n"
-"   doit accepter les connexions TCP depuis cette machine);\n"
-" - un nom d'utilisateur et un mot de passe pour accéder\n"
+" — le type de base de données que vous souhaitez utiliser ;\n"
+" — le nom d'hôte du serveur de base de données (ce serveur\n"
+"   doit accepter les connexions TCP depuis cette machine) ;\n"
+" — un nom d'utilisateur et un mot de passe pour accéder\n"
 "   à cette base de données."
 
 #. Type: boolean
 #. Description
-#: ../mistral-common.templates:2001
+#: ../manila-common.templates:2001
 msgid ""
 "If some of these requirements are missing, do not choose this option and run "
 "with regular SQLite support."
 msgstr ""
-"Si certains de ces prérequis sont manquants, ignorer cette option et "
+"Si certains de ces prérequis sont manquants, ignorez cette option et "
 "exécutez l'application avec le support SQLite normal."
 
 #. Type: boolean
 #. Description
-#: ../mistral-common.templates:2001
-#, fuzzy
+#: ../manila-common.templates:2001
 #| msgid ""
 #| "You can change this setting later on by running \"dpkg-reconfigure -plow "
-#| "glance-common\"."
+#| "manila-common\"."
 msgid ""
 "You can change this setting later on by running \"dpkg-reconfigure -plow "
-"mistral-common\"."
+"manila\"."
 msgstr ""
 "Vous pouvez modifier ce réglage plus tard en lançant « dpkg-reconfigure -"
-"plow glance-common »."
+"plow manila »."
 
 #. Type: string
 #. Description
-#: ../mistral-common.templates:3001
+#: ../manila-common.templates:3001
 msgid "Authentication server hostname:"
 msgstr "Nom d'hôte du serveur d'authentification."
 
 #. Type: string
 #. Description
-#: ../mistral-common.templates:3001
-#, fuzzy
+#: ../manila-common.templates:3001
 #| msgid ""
-#| "Please specify the hostname of the authentication server for Glance. "
+#| "Please specify the hostname of the authentication server for Manila. "
 #| "Typically this is also the hostname of the OpenStack Identity Service "
 #| "(Keystone)."
 msgid ""
 "Please specify the hostname of the authentication server. Typically this is "
 "also the hostname of the OpenStack Identity Service (Keystone)."
 msgstr ""
-"Veuillez indiquer le nom d'hôte de votre serveur d'authentification pour "
-"Glance. Typiquement c'est également le nom d'hôte de votre Service "
+"Veuillez indiquer le nom d'hôte du serveur d'authentification. "
+"Habituellement, c'est également le nom d'hôte du Service "
 "d'Identité OpenStack (Keystone)."
 
 #. Type: string
@@ -111,7 +108,7 @@ msgstr ""
 #. You're advised to either keep "tenant" without translating it
 #. or keep it aside with your translation. Example for French:
 #. proprietaire ("tenant")
-#: ../mistral-common.templates:4001
+#: ../manila-common.templates:4001
 msgid "Authentication server tenant name:"
 msgstr "Nom d'espace client du serveur d'authentification :"
 
@@ -124,20 +121,20 @@ msgstr "Nom d'espace client du serveur d'authentification :"
 #. You're advised to either keep "tenant" without translating it
 #. or keep it aside with your translation. Example for French:
 #. proprietaire ("tenant")
-#: ../mistral-common.templates:4001
+#: ../manila-common.templates:4001
 msgid "Please specify the authentication server tenant name."
 msgstr ""
 "Veuillez indiquer le nom de l'espace client du serveur d'authentification."
 
 #. Type: string
 #. Description
-#: ../mistral-common.templates:5001
+#: ../manila-common.templates:5001
 msgid "Authentication server username:"
 msgstr "Nom d'utilisateur pour le serveur d'authentification :"
 
 #. Type: string
 #. Description
-#: ../mistral-common.templates:5001
+#: ../manila-common.templates:5001
 msgid "Please specify the username to use with the authentication server."
 msgstr ""
 "Veuillez indiquer le nom d'utilisateur à utiliser sur le serveur "
@@ -145,13 +142,13 @@ msgstr ""
 
 #. Type: password
 #. Description
-#: ../mistral-common.templates:6001
+#: ../manila-common.templates:6001
 msgid "Authentication server password:"
 msgstr "Mot de passe pour le serveur d'authentification :"
 
 #. Type: password
 #. Description
-#: ../mistral-common.templates:6001
+#: ../manila-common.templates:6001
 msgid "Please specify the password to use with the authentication server."
 msgstr ""
 "Veuillez indiquer le mot de passe à utiliser sur le serveur "
@@ -159,9 +156,25 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-common.templates:7001
+#: ../manila-common.templates:7001
+msgid "Manila volume group:"
+msgstr "Groupe de volumes de Manila :"
+
+#. Type: string
+#. Description
+#: ../manila-common.templates:7001
+msgid ""
+"Please specify the name of the LVM volume group on which Manila will create "
+"partitions."
+msgstr ""
+"Veuillez indiquer le nom du groupe de volumes LVM dans lequel Manila "
+"créera des partitions."
+
+#. Type: string
+#. Description
+#: ../manila-common.templates:8001
 msgid "IP address of your RabbitMQ host:"
-msgstr "Adresse IP de votre hôte RabbitMQ :"
+msgstr "Adresse IP de l'hôte RabbitMQ :"
 
 #. Type: string
 #. Description
@@ -169,8 +182,8 @@ msgstr "Adresse IP de votre hôte RabbitMQ :"
 #. Description
 #. Type: password
 #. Description
-#: ../mistral-common.templates:7001 ../mistral-common.templates:8001
-#: ../mistral-common.templates:9001
+#: ../manila-common.templates:8001 ../manila-common.templates:9001
+#: ../manila-common.templates:10001
 msgid ""
 "In order to interoperate with other components of OpenStack, this package "
 "needs to connect to a central RabbitMQ server."
@@ -180,19 +193,19 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-common.templates:7001
+#: ../manila-common.templates:8001
 msgid "Please specify the IP address of that server."
 msgstr "Veuillez indiquer l'adresse IP de ce serveur."
 
 #. Type: string
 #. Description
-#: ../mistral-common.templates:8001
+#: ../manila-common.templates:9001
 msgid "Username for connection to the RabbitMQ server:"
 msgstr "Nom d'utilisateur pour la connexion au serveur RabbitMQ : "
 
 #. Type: string
 #. Description
-#: ../mistral-common.templates:8001
+#: ../manila-common.templates:9001
 msgid "Please specify the username used to connect to the RabbitMQ server."
 msgstr ""
 "Veuillez indiquer le nom d'utilisateur à utiliser pour se connecter au "
@@ -200,13 +213,13 @@ msgstr ""
 
 #. Type: password
 #. Description
-#: ../mistral-common.templates:9001
+#: ../manila-common.templates:10001
 msgid "Password for connection to the RabbitMQ server:"
 msgstr "Mot de passe pour la connexion au serveur RabbitMQ : "
 
 #. Type: password
 #. Description
-#: ../mistral-common.templates:9001
+#: ../manila-common.templates:10001
 msgid "Please specify the password used to connect to the RabbitMQ server."
 msgstr ""
 "Veuillez indiquer le mot de passe à utiliser pour se connecter au serveur "
@@ -214,15 +227,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mistral-api.templates:2001
-#, fuzzy
-#| msgid "Register Glance in the Keystone endpoint catalog?"
-msgid "Register Mistral in the Keystone endpoint catalog?"
-msgstr "Enregistrer Glance dans le catalogue de points d'accès de Keystone ?"
+#: ../manila-api.templates:2001
+msgid "Register Manila in the Keystone endpoint catalog?"
+msgstr "Enregistrer Manila dans le catalogue de points d'accès de Keystone ?"
 
 #. Type: boolean
 #. Description
-#: ../mistral-api.templates:2001
+#: ../manila-api.templates:2001
 msgid ""
 "Each OpenStack service (each API) should be registered in order to be "
 "accessible. This is done using \"keystone service-create\" and \"keystone "
@@ -234,7 +245,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mistral-api.templates:2001
+#: ../manila-api.templates:2001
 msgid ""
 "Note that you will need to have an up and running Keystone server on which "
 "to connect using the Keystone authentication token."
@@ -244,65 +255,53 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:3001
+#: ../manila-api.templates:3001
 msgid "Keystone server IP address:"
 msgstr "Adresse IP du serveur Keystone : "
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please enter the IP address of the Keystone server, so that glance-api "
-#| "can contact Keystone to do the Glance service and endpoint creation."
+#: ../manila-api.templates:3001
 msgid ""
-"Please enter the IP address of the Keystone server, so that mistral-api can "
-"contact Keystone to do the Mistral service and endpoint creation."
+"Please enter the IP address of the Keystone server, so that manila-api can "
+"contact Keystone to do the Manila service and endpoint creation."
 msgstr ""
-"Veuillez indiquer l'adresse IP du serveur Keystone, pour que l'API de Glance "
-"puisse contacter Keystone pour établir le service Glance et créer le point "
+"Veuillez indiquer l'adresse IP du serveur Keystone, pour que l'API de Manila "
+"puisse contacter Keystone pour établir le service Manila et créer le point "
 "d'accès."
 
 #. Type: password
 #. Description
-#: ../mistral-api.templates:4001
+#: ../manila-api.templates:4001
 msgid "Keystone authentication token:"
 msgstr "Jeton d'authentification Keystone : "
 
 #. Type: password
 #. Description
-#: ../mistral-api.templates:4001
-#, fuzzy
-#| msgid ""
-#| "To configure its endpoint in Keystone, glance-api needs the Keystone "
-#| "authentication token."
+#: ../manila-api.templates:4001
 msgid ""
-"To configure its endpoint in Keystone, mistral-api needs the Keystone "
+"To configure its endpoint in Keystone, manila-api needs the Keystone "
 "authentication token."
 msgstr ""
-"Pour configurer son point d'accès dans Keystone, l'API de Glance a besoin du "
+"Pour configurer son point d'accès dans Keystone, l'API de Manila a besoin du "
 "jeton d'authentification Keystone."
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
-#, fuzzy
-#| msgid "Glance endpoint IP address:"
-msgid "Mistral endpoint IP address:"
-msgstr "Adresse IP du point d'accès Glance : "
+#: ../manila-api.templates:5001
+msgid "Manila endpoint IP address:"
+msgstr "Adresse IP du point d'accès Manila : "
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
-#, fuzzy
-#| msgid "Please enter the IP address that will be used to contact Glance."
-msgid "Please enter the IP address that will be used to contact Mistral."
+#: ../manila-api.templates:5001
+msgid "Please enter the IP address that will be used to contact Manila."
 msgstr ""
-"Veuillez indiquer l'adresse IP qui sera utilisée pour contacter Glance."
+"Veuillez indiquer l'adresse IP qui sera utilisée pour contacter Manila."
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../manila-api.templates:5001
 msgid ""
 "This IP address should be accessible from the clients that will use this "
 "service, so if you are installing a public cloud, this should be a public IP "
@@ -314,19 +313,19 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../manila-api.templates:6001
 msgid "Name of the region to register:"
 msgstr "Nom de la région à enregistrer : "
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../manila-api.templates:6001
 msgid ""
 "OpenStack supports using availability zones, with each region representing a "
 "location. Please enter the zone that you wish to use when registering the "
 "endpoint."
 msgstr ""
-"OpenStack supporte l'utilisation de zones disponibles, avec chaque région "
+"OpenStack gère l'utilisation de zones disponibles, avec chaque région "
 "représentant un lieu. Veuillez entrer une zone que vous souhaitez utiliser "
 "lors de l'enregistrement d'un point d'accès."
 
@@ -348,9 +347,9 @@ msgstr ""
 #~ msgid "Pipeline flavor:"
 #~ msgstr "Type d'acheminement des paquets :"
 
-#~ msgid "Please specify the flavor of the pipeline to be used by Glance."
+#~ msgid "Please specify the flavor of the pipeline to be used by Manila."
 #~ msgstr ""
-#~ "Veuillez indiquer le type d'acheminement des paquets que Glance doit "
+#~ "Veuillez indiquer le type d'acheminement des paquets que Manila doit "
 #~ "utiliser."
 
 #~ msgid ""
