@@ -1,6 +1,7 @@
 mistral (2.0.0~b2-2) experimental; urgency=medium
 
   * Updated fr.po and nl.po debconf translations (Closes: #807766, #805466).
+  * Fixed config file generation.
 
  -- Thomas Goirand <zigo@debian.org>  Sat, 06 Feb 2016 05:17:25 +0000
 

@@ -28,9 +28,15 @@ override_dh_auto_install:
 	set -e ; for i in logging.conf wf_trace_logging.conf ; do \
 		install -D -m 0664 etc/$$i.sample $(CURDIR)/debian/mistral-common/usr/share/mistral-common/$$i ; \
 	done
-	PYTHONPATH=. oslo-config-generator --config-file tools/config/config-generator.mistral.conf \
+	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python2.7/dist-packages oslo-config-generator \
+		--namespace mistral.config \
+		--namespace oslo.db \
+		--namespace oslo.messaging \
+		--namespace keystonemiddleware.auth_token \
+		--namespace periodic.config \
+		--namespace oslo.log \
 		--output-file $(CURDIR)/debian/mistral-common/usr/share/mistral-common/mistral.conf
-	sed -i 's/[ \t#]*auth_protocol[ \t]*=.*/auth_protocol = http/' $(CURDIR)/debian/mistral-common/usr/share/mistral-common/mistral.conf
+	pkgos-fix-config-default $(CURDIR)/debian/mistral-common/usr/share/mistral-common/mistral.conf keystone_authtoken auth_protocol http
 
 override_dh_install:
 	dh_install --fail-missing
