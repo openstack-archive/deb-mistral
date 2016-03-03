@@ -1,3 +1,10 @@
+mistral (2.0.0~b3-3) experimental; urgency=medium
+
+  * New upstream release.
+  * Fixed (build-)depends for this release.
+
+ -- Thomas Goirand <zigo@debian.org>  Fri, 04 Mar 2016 01:37:34 +0800
+
 mistral (2.0.0~b2-2) experimental; urgency=medium
 
   * Updated fr.po and nl.po debconf translations (Closes: #807766, #805466).
