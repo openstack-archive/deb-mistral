@@ -26,6 +26,7 @@ from mistral.engine import rpc
 from mistral.engine import utils as e_utils
 from mistral import exceptions as exc
 from mistral import expressions as expr
+from mistral.services import executions as wf_ex_service
 from mistral.services import scheduler
 from mistral import utils
 from mistral.utils import wf_trace
@@ -79,9 +80,7 @@ def run_existing_task(task_ex_id, reset=True):
             action_ex.accepted = False
 
     # Explicitly change task state to RUNNING.
-    task_ex.state = states.RUNNING
-    task_ex.state_info = None
-    task_ex.processed = False
+    set_task_state(task_ex, states.RUNNING, None, processed=False)
 
     _run_existing_task(task_ex, task_spec, wf_spec)
 
@@ -97,9 +96,15 @@ def _run_existing_task(task_ex, task_spec, wf_spec):
     # In some cases we can have no input, e.g. in case of 'with-items'.
     if input_dicts:
         for index, input_d in input_dicts:
-            _run_action_or_workflow(task_ex, task_spec, input_d, index)
+            _run_action_or_workflow(
+                task_ex,
+                task_spec,
+                input_d,
+                index,
+                wf_spec
+            )
     else:
-        _schedule_noop_action(task_ex, task_spec)
+        _schedule_noop_action(task_ex, task_spec, wf_spec)
 
 
 def defer_task(wf_cmd):
@@ -128,7 +133,7 @@ def run_new_task(wf_cmd):
     )
 
     if task_ex:
-        _set_task_state(task_ex, states.RUNNING)
+        set_task_state(task_ex, states.RUNNING, None)
         task_ex.in_context = ctx
     else:
         task_ex = _create_task_execution(wf_ex, task_spec, ctx)
@@ -209,6 +214,7 @@ def _create_task_execution(wf_ex, task_spec, ctx, state=states.RUNNING):
         'name': task_spec.get_name(),
         'workflow_execution_id': wf_ex.id,
         'workflow_name': wf_ex.workflow_name,
+        'workflow_id': wf_ex.workflow_id,
         'state': state,
         'spec': task_spec.to_dict(),
         'in_context': ctx,
@@ -366,7 +372,7 @@ def _get_workflow_input(task_spec, ctx):
     return expr.evaluate_recursively(task_spec.get_input(), ctx)
 
 
-def _run_action_or_workflow(task_ex, task_spec, input_dict, index):
+def _run_action_or_workflow(task_ex, task_spec, input_dict, index, wf_spec):
     t_name = task_ex.name
 
     if task_spec.get_action_name():
@@ -376,14 +382,14 @@ def _run_action_or_workflow(task_ex, task_spec, input_dict, index):
             (t_name, task_spec.get_action_name())
         )
 
-        _schedule_run_action(task_ex, task_spec, input_dict, index)
+        _schedule_run_action(task_ex, task_spec, input_dict, index, wf_spec)
     elif task_spec.get_workflow_name():
         wf_trace.info(
             task_ex,
             "Task '%s' is RUNNING [workflow_name = %s]" %
             (t_name, task_spec.get_workflow_name()))
 
-        _schedule_run_workflow(task_ex, task_spec, input_dict, index)
+        _schedule_run_workflow(task_ex, task_spec, input_dict, index, wf_spec)
 
 
 def _get_action_defaults(task_ex, task_spec):
@@ -392,10 +398,7 @@ def _get_action_defaults(task_ex, task_spec):
     return actions.get(task_spec.get_action_name(), {})
 
 
-def _schedule_run_action(task_ex, task_spec, action_input, index):
-    wf_ex = task_ex.workflow_execution
-    wf_spec = spec_parser.get_workflow_spec(wf_ex.spec)
-
+def _schedule_run_action(task_ex, task_spec, action_input, index, wf_spec):
     action_spec_name = task_spec.get_action_name()
 
     action_def = action_handler.resolve_definition(
@@ -425,9 +428,8 @@ def _schedule_run_action(task_ex, task_spec, action_input, index):
     )
 
 
-def _schedule_noop_action(task_ex, task_spec):
+def _schedule_noop_action(task_ex, task_spec, wf_spec):
     wf_ex = task_ex.workflow_execution
-    wf_spec = spec_parser.get_workflow_spec(wf_ex.spec)
 
     action_def = action_handler.resolve_action_definition(
         'std.noop',
@@ -451,9 +453,9 @@ def _schedule_noop_action(task_ex, task_spec):
     )
 
 
-def _schedule_run_workflow(task_ex, task_spec, wf_input, index):
+def _schedule_run_workflow(task_ex, task_spec, wf_input, index,
+                           parent_wf_spec):
     parent_wf_ex = task_ex.workflow_execution
-    parent_wf_spec = spec_parser.get_workflow_spec(parent_wf_ex.spec)
 
     wf_spec_name = task_spec.get_workflow_name()
 
@@ -478,23 +480,24 @@ def _schedule_run_workflow(task_ex, task_spec, wf_input, index):
             wf_params[k] = v
             del wf_input[k]
 
-    scheduler.schedule_call(
-        None,
-        'mistral.engine.task_handler.run_workflow',
-        0,
-        wf_name=wf_def.name,
-        wf_input=wf_input,
-        wf_params=wf_params
-    )
-
-
-def run_workflow(wf_name, wf_input, wf_params):
-    rpc.get_engine_client().start_workflow(
-        wf_name,
+    wf_ex_id = wf_ex_service.create_workflow_execution(
+        wf_def.name,
         wf_input,
         "sub-workflow execution",
-        **wf_params
+        wf_params
     )
+
+    scheduler.schedule_call(
+        None,
+        'mistral.engine.task_handler.resume_workflow',
+        0,
+        wf_ex_id=wf_ex_id,
+        env=None
+    )
+
+
+def resume_workflow(wf_ex_id, env):
+    rpc.get_engine_client().resume_workflow(wf_ex_id, env=env)
 
 
 def _complete_task(task_ex, task_spec, state, state_info=None):
@@ -502,7 +505,7 @@ def _complete_task(task_ex, task_spec, state, state_info=None):
     if states.is_completed(task_ex.state):
         return []
 
-    _set_task_state(task_ex, state, state_info=state_info)
+    set_task_state(task_ex, state, state_info)
 
     try:
         data_flow.publish_variables(
@@ -510,13 +513,13 @@ def _complete_task(task_ex, task_spec, state, state_info=None):
             task_spec
         )
     except Exception as e:
-        _set_task_state(task_ex, states.ERROR, state_info=str(e))
+        set_task_state(task_ex, states.ERROR, str(e))
 
     if not task_spec.get_keep_result():
         data_flow.destroy_task_result(task_ex)
 
 
-def _set_task_state(task_ex, state, state_info=None):
+def set_task_state(task_ex, state, state_info, processed=None):
     # TODO(rakhmerov): How do we log task result?
     wf_trace.info(
         task_ex.workflow_execution,
@@ -525,9 +528,10 @@ def _set_task_state(task_ex, state, state_info=None):
     )
 
     task_ex.state = state
+    task_ex.state_info = state_info
 
-    if state_info:
-        task_ex.state_info = state_info
+    if processed is not None:
+        task_ex.processed = processed
 
 
 def is_task_completed(task_ex, task_spec):

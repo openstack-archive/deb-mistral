@@ -19,8 +19,8 @@ import time
 import mock
 import six
 
+from oslo_utils import uuidutils
 from tempest import clients
-from tempest.common import credentials_factory as creds
 from tempest import config
 from tempest import test as test
 from tempest_lib import auth
@@ -165,8 +165,11 @@ class MistralClientV2(MistralClientBase):
 
         return resp, json.loads(body)
 
-    def create_execution(self, wf_name, wf_input=None, params=None):
-        body = {"workflow_name": "%s" % wf_name}
+    def create_execution(self, identifier, wf_input=None, params=None):
+        if uuidutils.is_uuid_like(identifier):
+            body = {"workflow_id": "%s" % identifier}
+        else:
+            body = {"workflow_name": "%s" % identifier}
 
         if wf_input:
             body.update({'input': json.dumps(wf_input)})
@@ -244,6 +247,9 @@ class AuthProv(auth.KeystoneV2AuthProvider):
 
 
 class TestCase(test.BaseTestCase):
+
+    credentials = ['primary', 'alt']
+
     @classmethod
     def resource_setup(cls):
         """Client authentication.
@@ -256,16 +262,10 @@ class TestCase(test.BaseTestCase):
         if 'WITHOUT_AUTH' in os.environ:
             cls.mgr = mock.MagicMock()
             cls.mgr.auth_provider = AuthProv()
+            cls.alt_mgr = cls.mgr
         else:
-            cls.creds = creds.get_configured_credentials(
-                credential_type='user'
-            )
-            cls.mgr = clients.Manager(cls.creds)
-
-            cls.alt_creds = creds.get_configured_credentials(
-                credential_type='alt_user'
-            )
-            cls.alt_mgr = clients.Manager(cls.alt_creds)
+            cls.mgr = cls.manager
+            cls.alt_mgr = cls.alt_manager
 
         if cls._service == 'workflowv2':
             cls.client = MistralClientV2(

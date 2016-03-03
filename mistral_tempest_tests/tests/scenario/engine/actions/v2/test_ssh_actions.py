@@ -21,6 +21,7 @@ from oslo_log import log as logging
 from paramiko import ssh_exception
 from tempest import config
 from tempest import test
+from tempest_lib import exceptions
 
 from mistral import utils
 from mistral.utils import ssh_utils
@@ -38,19 +39,25 @@ class SSHActionsTestsV2(base.TestCaseAdvanced):
 
     @classmethod
     def _create_security_group_rule_ssh(cls):
-        sec_groups = cls.mgr.security_groups_client.list_security_groups()
+        sec_groups = (
+            cls.mgr.compute_security_groups_client.
+            list_security_groups()
+        )
         sec_groups = sec_groups['security_groups']
 
         default_group = next(
             g for g in sec_groups if g['name'] == 'default'
         )
 
-        rule = cls.mgr.security_group_rules_client.create_security_group_rule(
-            parent_group_id=default_group['id'],
-            ip_protocol="tcp",
-            from_port=22,
-            to_port=22,
-            cidr="0.0.0.0/0"
+        rule = (
+            cls.mgr.compute_security_group_rules_client
+            .create_security_group_rule(
+                parent_group_id=default_group['id'],
+                ip_protocol="tcp",
+                from_port=22,
+                to_port=22,
+                cidr="0.0.0.0/0"
+            )
         )
 
         cls.ssh_rule_id = rule['security_group_rule']['id']
@@ -131,6 +138,22 @@ class SSHActionsTestsV2(base.TestCaseAdvanced):
         )
 
     @classmethod
+    def _wait_until_server_delete(cls, server_id, timeout=60, delay=2):
+        seconds_remain = timeout
+
+        LOG.info("Deleting server [id=%s]..." % server_id)
+
+        while seconds_remain > 0:
+            try:
+                cls.server_client.show_server(server_id)
+                seconds_remain -= delay
+                time.sleep(delay)
+            except exceptions.NotFound:
+                return
+
+        raise RuntimeError("Server delete timeout!")
+
+    @classmethod
     def resource_setup(cls):
         super(SSHActionsTestsV2, cls).resource_setup()
 
@@ -201,11 +224,21 @@ class SSHActionsTestsV2(base.TestCaseAdvanced):
 
     @classmethod
     def resource_cleanup(cls):
+        fl_ip_client = cls.mgr.compute_floating_ips_client
+        fl_ip_client.disassociate_floating_ip_from_server(
+            cls.public_vm_ip,
+            cls.public_vm['id']
+        )
+
         cls.server_client.delete_server(cls.public_vm['id'])
         cls.server_client.delete_server(cls.guest_vm['id'])
+
+        cls._wait_until_server_delete(cls.public_vm['id'])
+        cls._wait_until_server_delete(cls.guest_vm['id'])
+
         cls.mgr.keypairs_client.delete_keypair(cls.key_name)
 
-        cls.mgr.security_group_rules_client.delete_security_group_rule(
+        cls.mgr.compute_security_group_rules_client.delete_security_group_rule(
             cls.ssh_rule_id
         )
         os.remove(cls.key_dir + cls.key_name)
@@ -217,7 +250,7 @@ class SSHActionsTestsV2(base.TestCaseAdvanced):
         input_data = {
             'cmd': 'hostname',
             'host': self.public_vm_ip,
-            'username': CONF.scenario.ssh_user,
+            'username': CONF.validation.image_ssh_user,
             'private_key_filename': self.key_name
         }
 
@@ -241,10 +274,10 @@ class SSHActionsTestsV2(base.TestCaseAdvanced):
         input_data = {
             'cmd': 'hostname',
             'host': guest_vm_ip,
-            'username': CONF.scenario.ssh_user,
+            'username': CONF.validation.image_ssh_user,
             'private_key_filename': self.key_name,
             'gateway_host': self.public_vm_ip,
-            'gateway_username': CONF.scenario.ssh_user
+            'gateway_username': CONF.validation.image_ssh_user
         }
 
         resp, body = self.client.create_action_execution(

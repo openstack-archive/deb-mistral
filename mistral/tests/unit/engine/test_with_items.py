@@ -1016,3 +1016,96 @@ class WithItemsEngineTest(base.EngineTestCase):
         )
 
         self.assertEqual(states.SUCCESS, task1.state)
+
+    def test_with_items_two_tasks_second_starts_on_success(self):
+        workbook = """---
+        version: "2.0"
+
+        name: wb1
+
+        workflows:
+          with_items:
+            type: direct
+
+            tasks:
+              task1:
+                with-items: i in [1, 2]
+                action: std.echo output=<% $.i %>
+                on-success: task2
+              task2:
+                with-items: i in [3, 4]
+                action: std.echo output=<% $.i %>
+        """
+        wb_service.create_workbook_v2(workbook)
+
+        # Start workflow.
+        wf_ex = self.engine.start_workflow('wb1.with_items', {})
+
+        self._await(lambda: self.is_execution_success(wf_ex.id))
+
+        # Note: We need to reread execution to access related tasks.
+        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+        tasks = wf_ex.task_executions
+        task1 = self._assert_single_item(tasks, name='task1')
+        task2 = self._assert_single_item(tasks, name='task2')
+        self.assertEqual(states.SUCCESS, task1.state)
+        self.assertEqual(states.SUCCESS, task2.state)
+
+        result_task1 = data_flow.get_task_execution_result(task1)
+        result_task2 = data_flow.get_task_execution_result(task2)
+
+        # Since we know that we can receive results in random order,
+        # check is not depend on order of items.
+        self.assertIn(1, result_task1)
+        self.assertIn(2, result_task1)
+        self.assertIn(3, result_task2)
+        self.assertIn(4, result_task2)
+
+    def test_with_items_subflow_concurrency_gt_list_length(self):
+        workbook_definition = """---
+        version: "2.0"
+        name: wb1
+
+        workflows:
+          main:
+            type: direct
+            input:
+             - names
+            tasks:
+              task1:
+                with-items: name in <% $.names %>
+                workflow: subflow1 name=<% $.name %>
+                concurrency: 3
+          subflow1:
+            type: direct
+            input:
+                - name
+            output:
+              result: <% task(task1).result %>
+            tasks:
+              task1:
+                action: std.echo output=<% $.name %>
+        """
+
+        wb_service.create_workbook_v2(workbook_definition)
+
+        # Start workflow.
+        names = ["Peter", "Susan", "Edmund", "Lucy", "Aslan", "Caspian"]
+        wf_ex = self.engine.start_workflow('wb1.main', {'names': names})
+
+        self._await(
+            lambda: self.is_execution_success(wf_ex.id),
+        )
+
+        wf_ex = db_api.get_execution(wf_ex.id)
+        task_ex = self._assert_single_item(wf_ex.task_executions, name='task1')
+
+        self.assertEqual(states.SUCCESS, task_ex.state)
+
+        result = [
+            item['result']
+            for item in data_flow.get_task_execution_result(task_ex)
+        ]
+
+        self.assertListEqual(sorted(result), sorted(names))

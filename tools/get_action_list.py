@@ -18,8 +18,10 @@ import inspect
 import json
 import os
 
+from barbicanclient import base as barbican_base
+from barbicanclient import client as barbicanclient
 from ceilometerclient.v2 import client as ceilometerclient
-from cinderclient import utils as cinder_base
+from cinderclient.openstack.common.apiclient import base as cinder_base
 from cinderclient.v2 import client as cinderclient
 from glanceclient.v2 import client as glanceclient
 from heatclient.openstack.common.apiclient import base as heat_base
@@ -28,8 +30,10 @@ from ironicclient.common import base as ironic_base
 from ironicclient.v1 import client as ironicclient
 from keystoneclient import base as keystone_base
 from keystoneclient.v3 import client as keystoneclient
+from mistralclient.api import base as mistral_base
+from mistralclient.api.v2 import client as mistralclient
+from novaclient import base as nova_base
 from novaclient import client as novaclient
-from novaclient.openstack.common.apiclient import base as nova_base
 from troveclient import base as trove_base
 from troveclient.v1 import client as troveclient
 
@@ -39,6 +43,8 @@ from troveclient.v1 import client as troveclient
 # TODO(dprince): Need to update ironic_inspector_client before we can
 # plug it in cleanly here.
 # TODO(dprince): Swiftclient doesn't currently support discovery
+# like we do in this class.
+# TODO(therve): Zaqarclient doesn't currently support discovery
 # like we do in this class.
 
 """It is simple CLI tool which allows to see and update mapping.json file
@@ -67,8 +73,10 @@ BASE_HEAT_MANAGER = heat_base.HookableMixin
 BASE_NOVA_MANAGER = nova_base.HookableMixin
 BASE_KEYSTONE_MANAGER = keystone_base.Manager
 BASE_CINDER_MANAGER = cinder_base.HookableMixin
+BASE_MISTRAL_MANAGER = mistral_base.ResourceManager
 BASE_TROVE_MANAGER = trove_base.Manager
 BASE_IRONIC_MANAGER = ironic_base.Manager
+BASE_BARBICAN_MANAGER = barbican_base.BaseEntityManager
 
 
 def get_parser():
@@ -144,12 +152,23 @@ def get_cinder_client(**kwargs):
     return cinderclient.Client()
 
 
+def get_mistral_client(**kwargs):
+    return mistralclient.Client()
+
+
 def get_trove_client(**kwargs):
     return troveclient.Client('username', 'password')
 
 
 def get_ironic_client(**kwargs):
     return ironicclient.Client("http://127.0.0.1:6385/")
+
+
+def get_barbican_client(**kwargs):
+    return barbicanclient.Client(
+        project_id="1",
+        endpoint="http://127.0.0.1:9311"
+    )
 
 
 CLIENTS = {
@@ -161,9 +180,12 @@ CLIENTS = {
     'glance': get_glance_client,
     'trove': get_trove_client,
     'ironic': get_ironic_client,
+    'barbican': get_barbican_client,
+    'mistral': get_mistral_client,
     # 'neutron': get_nova_client
     # 'baremetal_introspection': ...
     # 'swift': ...
+    # 'zaqar': ...
 }
 BASE_MANAGERS = {
     'nova': BASE_NOVA_MANAGER,
@@ -174,9 +196,12 @@ BASE_MANAGERS = {
     'glance': None,
     'trove': BASE_TROVE_MANAGER,
     'ironic': BASE_IRONIC_MANAGER,
+    'barbican': BASE_BARBICAN_MANAGER,
+    'mistral': BASE_MISTRAL_MANAGER,
     # 'neutron': BASE_NOVA_MANAGER
     # 'baremetal_introspection': ...
     # 'swift': ...
+    # 'zaqar': ...
 }
 NAMESPACES = {
     'glance': GLANCE_NAMESPACE_LIST,

@@ -29,9 +29,12 @@ MODULE_MAPPING = {
     'baremetal_introspection': ['baremetal_introspection.introspect',
                                 actions.BaremetalIntrospectionAction],
     'swift': ['swift.head_account', actions.SwiftAction],
+    'zaqar': ['zaqar.queue_messages', actions.ZaqarAction],
+    'barbican': ['barbican.orders_list', actions.BarbicanAction],
+    'mistral': ['mistral.workflows_get', actions.MistralAction],
 }
 
-EXTRA_MODULES = ['neutron', 'swift']
+EXTRA_MODULES = ['neutron', 'swift', 'zaqar']
 
 
 class GeneratorTest(base.BaseTest):

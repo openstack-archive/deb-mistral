@@ -115,11 +115,19 @@ def _get_one_entity(model, id):
 def _secure_query(model, *columns):
     query = b.model_query(model, columns)
 
+    shared_res_ids = []
+    res_type = RESOURCE_MAPPING.get(model, '')
+
+    if res_type:
+        shared_res = _get_accepted_resources(res_type)
+        shared_res_ids = [res.resource_id for res in shared_res]
+
     if issubclass(model, mb.MistralSecureModelBase):
         query = query.filter(
             sa.or_(
                 model.project_id == security.get_project_id(),
-                model.scope == 'public'
+                model.scope == 'public',
+                model.id.in_(shared_res_ids)
             )
         )
 
@@ -144,11 +152,20 @@ def _paginate_query(model, limit=None, marker=None, sort_keys=None,
 
 
 def _delete_all(model, session=None, **kwargs):
-    _secure_query(model).filter_by(**kwargs).delete()
+    # NOTE(lane): Because we use 'in_' operator in _secure_query(), delete()
+    # method will raise error with default parameter. Please refer to
+    # http://docs.sqlalchemy.org/en/rel_1_0/orm/query.html#sqlalchemy.orm.query.Query.delete
+    _secure_query(model).filter_by(**kwargs).delete(synchronize_session=False)
 
 
 def _get_collection_sorted_by_name(model, **kwargs):
-    return _secure_query(model).filter_by(**kwargs).order_by(model.name).all()
+    # Note(lane): Sometimes tenant_A needs to get resources of tenant_B,
+    # especially in resource sharing scenario, the resource owner needs to
+    # check if the resource is used by a member.
+    query = (b.model_query(model) if 'project_id' in kwargs
+             else _secure_query(model))
+
+    return query.filter_by(**kwargs).order_by(model.name).all()
 
 
 def _get_collection_sorted_by_time(model, **kwargs):
@@ -393,6 +410,9 @@ def delete_workflow_definition(identifier, session=None):
             "[workflow_identifier=%s], [cron_trigger_name(s)=%s]" %
             (identifier, ', '.join(cron_triggers))
         )
+
+    # Delete workflow members first.
+    delete_resource_members(resource_type='workflow', resource_id=wf_def.id)
 
     session.delete(wf_def)
 
@@ -1180,3 +1200,161 @@ def _get_environment(name):
 @b.session_aware()
 def delete_environments(**kwargs):
     return _delete_all(models.Environment, **kwargs)
+
+
+# Resource members.
+
+
+RESOURCE_MAPPING = {
+    models.WorkflowDefinition: 'workflow',
+    models.Workbook: 'workbook'
+}
+
+
+def _get_criterion(resource_id, member_id=None, is_owner=True):
+    """Generates criterion for querying resource_member_v2 table."""
+
+    # Resource owner query resource membership with member_id.
+    if is_owner and member_id:
+        return sa.and_(
+            models.ResourceMember.project_id == security.get_project_id(),
+            models.ResourceMember.resource_id == resource_id,
+            models.ResourceMember.member_id == member_id
+        )
+    # Resource owner query resource memberships.
+    elif is_owner and not member_id:
+        return sa.and_(
+            models.ResourceMember.project_id == security.get_project_id(),
+            models.ResourceMember.resource_id == resource_id,
+        )
+
+    # Other members query other resource membership.
+    elif not is_owner and member_id and member_id != security.get_project_id():
+        return None
+
+    # Resource member query resource memberships.
+    return sa.and_(
+        models.ResourceMember.member_id == security.get_project_id(),
+        models.ResourceMember.resource_id == resource_id
+    )
+
+
+@b.session_aware()
+def create_resource_member(values, session=None):
+    res_member = models.ResourceMember()
+
+    res_member.update(values.copy())
+
+    try:
+        res_member.save(session=session)
+    except db_exc.DBDuplicateEntry as e:
+        raise exc.DBDuplicateEntryException(
+            "Duplicate entry for ResourceMember: %s" % e.columns
+        )
+
+    return res_member
+
+
+def get_resource_member(resource_id, res_type, member_id):
+    query = _secure_query(models.ResourceMember).filter_by(
+        resource_type=res_type
+    )
+
+    # Both resource owner and resource member can do query.
+    res_member = query.filter(
+        sa.or_(
+            _get_criterion(resource_id, member_id),
+            _get_criterion(resource_id, member_id, is_owner=False)
+        )
+    ).first()
+
+    if not res_member:
+        raise exc.NotFoundException(
+            "Resource member not found [resource_id=%s, member_id=%s]" %
+            (resource_id, member_id)
+        )
+
+    return res_member
+
+
+def get_resource_members(resource_id, res_type):
+    query = _secure_query(models.ResourceMember).filter_by(
+        resource_type=res_type
+    )
+
+    # Both resource owner and resource member can do query.
+    res_members = query.filter(
+        sa.or_(
+            _get_criterion(resource_id),
+            _get_criterion(resource_id, is_owner=False),
+        )
+    ).all()
+
+    return res_members
+
+
+@b.session_aware()
+def update_resource_member(resource_id, res_type, member_id, values,
+                           session=None):
+    # Only member who is not the owner of the resource can update the
+    # membership status.
+    if member_id != security.get_project_id():
+        raise exc.NotFoundException(
+            "Resource member not found [resource_id=%s, member_id=%s]" %
+            (resource_id, member_id)
+        )
+
+    query = _secure_query(models.ResourceMember).filter_by(
+        resource_type=res_type
+    )
+
+    res_member = query.filter(
+        _get_criterion(resource_id, member_id, is_owner=False)
+    ).first()
+
+    if not res_member:
+        raise exc.NotFoundException(
+            "Resource member not found [resource_id=%s, member_id=%s]" %
+            (resource_id, member_id)
+        )
+
+    res_member.update(values.copy())
+
+    return res_member
+
+
+@b.session_aware()
+def delete_resource_member(resource_id, res_type, member_id, session=None):
+    query = _secure_query(models.ResourceMember).filter_by(
+        resource_type=res_type
+    )
+
+    res_member = query.filter(_get_criterion(resource_id, member_id)).first()
+
+    if not res_member:
+        raise exc.NotFoundException(
+            "Resource member not found [resource_id=%s, member_id=%s]" %
+            (resource_id, member_id)
+        )
+
+    # TODO(lane): Check association with cron triggers when deleting a workflow
+    # member which is in 'accepted' status.
+
+    session.delete(res_member)
+
+
+@b.session_aware()
+def delete_resource_members(**kwargs):
+    return _delete_all(models.ResourceMember, **kwargs)
+
+
+def _get_accepted_resources(res_type):
+    resources = _secure_query(models.ResourceMember).filter(
+        sa.and_(
+            models.ResourceMember.resource_type == res_type,
+            models.ResourceMember.status == 'accepted',
+            models.ResourceMember.member_id == security.get_project_id()
+        )
+    ).all()
+
+    return resources

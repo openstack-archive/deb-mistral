@@ -62,6 +62,7 @@ def create_action_execution(action_def, action_input, task_ex=None,
         values.update({
             'task_execution_id': task_ex.id,
             'workflow_name': task_ex.workflow_name,
+            'workflow_id': task_ex.workflow_id,
             'project_id': task_ex.project_id,
         })
     else:
@@ -286,8 +287,7 @@ def transform_result(result, task_ex=None, action_ex=None):
 
     if action_spec_name:
         wf_ex = task_ex.workflow_execution if task_ex else None
-        wf_spec_name = (spec_parser.get_workflow_spec(
-            wf_ex.spec).get_name() if task_ex else None)
+        wf_spec_name = wf_ex.spec['name'] if task_ex else None
 
         return transform_action_result(
             action_spec_name,

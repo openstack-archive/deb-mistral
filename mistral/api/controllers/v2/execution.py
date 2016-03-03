@@ -45,6 +45,9 @@ class Execution(resource.Resource):
     workflow_name = wtypes.text
     "reference to workflow definition"
 
+    workflow_id = wtypes.text
+    "reference to workflow ID"
+
     description = wtypes.text
     "description of workflow execution."
 
@@ -52,8 +55,11 @@ class Execution(resource.Resource):
     "params define workflow type specific parameters. For example, reverse \
     workflow takes one parameter 'task_name' that defines a target task."
 
+    task_execution_id = wtypes.text
+    "reference to the parent task execution"
+
     state = wtypes.text
-    "state can be one of: RUNNING, SUCCESS, ERROR, PAUSED"
+    "state can be one of: IDLE, RUNNING, SUCCESS, ERROR, PAUSED"
 
     state_info = wtypes.text
     "an optional state information string"
@@ -71,6 +77,7 @@ class Execution(resource.Resource):
     def sample(cls):
         return cls(id='123e4567-e89b-12d3-a456-426655440000',
                    workflow_name='flow',
+                   workflow_id='123e4567-e89b-12d3-a456-426655441111',
                    description='this is the first execution.',
                    state='SUCCESS',
                    input={},
@@ -217,8 +224,15 @@ class ExecutionsController(rest.RestController):
         engine = rpc.get_engine_client()
         exec_dict = wf_ex.to_dict()
 
+        if not (exec_dict.get('workflow_id')
+                or exec_dict.get('workflow_name')):
+            raise exc.WorkflowException(
+                "Workflow ID or workflow name must be provided. Workflow ID is"
+                " recommended."
+            )
+
         result = engine.start_workflow(
-            exec_dict['workflow_name'],
+            exec_dict.get('workflow_id', exec_dict.get('workflow_name')),
             exec_dict.get('input'),
             exec_dict.get('description', ''),
             **exec_dict.get('params') or {}

@@ -139,6 +139,18 @@ class OpenStackActionTest(base.BaseTestCase):
         self.assertTrue(mocked().get_status.called)
         mocked().get_status.assert_called_once_with(uuid="1234")
 
+    @mock.patch.object(actions.MistralAction, '_get_client')
+    def test_mistral_action(self, mocked):
+        method_name = "workflows.get"
+        action_class = actions.MistralAction
+        action_class.client_method_name = method_name
+        params = {'name': '1234-abcd'}
+        action = action_class(**params)
+        action.run()
+
+        self.assertTrue(mocked().workflows.get.called)
+        mocked().workflows.get.assert_called_once_with(name="1234-abcd")
+
     @mock.patch.object(actions.SwiftAction, '_get_client')
     def test_swift_action(self, mocked):
         method_name = "get_object"
@@ -151,3 +163,27 @@ class OpenStackActionTest(base.BaseTestCase):
         self.assertTrue(mocked().get_object.called)
         mocked().get_object.assert_called_once_with(container='foo',
                                                     object='bar')
+
+    @mock.patch.object(actions.ZaqarAction, '_get_client')
+    def test_zaqar_action(self, mocked):
+        method_name = "queue_messages"
+        action_class = actions.ZaqarAction
+        action_class.client_method_name = method_name
+        params = {'queue_name': 'foo'}
+        action = action_class(**params)
+        action.run()
+
+        mocked().queue.assert_called_once_with('foo')
+        mocked().queue().messages.assert_called_once_with()
+
+    @mock.patch.object(actions.BarbicanAction, '_get_client')
+    def test_barbican_action(self, mocked):
+        method_name = "orders_list"
+        action_class = actions.BarbicanAction
+        action_class.client_method_name = method_name
+        params = {'limit': 5}
+        action = action_class(**params)
+        action.run()
+
+        self.assertTrue(mocked().orders_list.called)
+        mocked().orders_list.assert_called_once_with(limit=5)

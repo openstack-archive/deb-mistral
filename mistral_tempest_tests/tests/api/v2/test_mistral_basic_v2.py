@@ -166,7 +166,7 @@ class WorkflowTestsV2(base.TestCase):
         self.assertEqual(200, resp.status)
 
         for wf in body['workflows']:
-            self.assertListEqual(['id', 'name'], wf.keys())
+            self.assertListEqual(sorted(['id', 'name']), sorted(list(wf)))
 
     @test.attr(type='smoke')
     def test_get_list_workflows_with_pagination(self):
@@ -382,9 +382,8 @@ class WorkflowTestsV2(base.TestCase):
                 name
             )
 
-            self.assertEqual(
-                "Can't delete workflow that has triggers " +
-                "[workflow_name=wf2],[cron_trigger_name(s)=trigger]",
+            self.assertIn(
+                "Can't delete workflow that has triggers associated",
                 exception.resp_body['faultstring']
             )
         finally:
@@ -409,6 +408,7 @@ class ExecutionTestsV2(base.TestCase):
 
         self.direct_wf_name = 'wf'
         self.direct_wf2_name = 'wf2'
+        self.direct_wf_id = body['workflows'][0]['id']
         reverse_wfs = [wf for wf in body['workflows'] if wf['name'] == 'wf1']
         self.reverse_wf = reverse_wfs[0]
 
@@ -516,6 +516,20 @@ class ExecutionTestsV2(base.TestCase):
             resp, body = self.client.get_object('executions', exec_id)
             self.assertEqual(200, resp.status)
         self.assertEqual('SUCCESS', body['state'])
+
+    @test.attr(type='sanity')
+    def test_create_execution_by_wf_id(self):
+        resp, body = self.client.create_execution(self.direct_wf_id)
+        exec_id = body['id']
+        self.assertEqual(201, resp.status)
+        self.assertEqual(self.direct_wf_id, body['workflow_id'])
+        self.assertEqual('RUNNING', body['state'])
+
+        resp, body = self.client.get_list_obj('executions')
+        self.assertIn(
+            exec_id,
+            [ex_id['id'] for ex_id in body['executions']]
+        )
 
     @test.attr(type='sanity')
     def test_get_execution(self):
@@ -1168,3 +1182,18 @@ class ActionExecutionTestsV2(base.TestCase):
             'action_executions',
             'nonexist'
         )
+
+    @test.attr(type='sanity')
+    def test_create_action_execution_sync(self):
+        token = self.client.auth_provider.get_token()
+        resp, body = self.client.create_action_execution(
+            {
+                'name': 'std.http',
+                'input': '{{"url": "http://localhost:8989/v2/workflows",\
+                           "headers": {{"X-Auth-Token": "{}"}}}}'.format(token)
+            }
+        )
+
+        self.assertEqual(201, resp.status)
+        output = json.loads(body['output'])
+        self.assertEqual(200, output['result']['status'])
