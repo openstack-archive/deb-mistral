@@ -1,4 +1,4 @@
-mistral (2.0.0~rc1-2) UNRELEASED; urgency=medium
+mistral (2.0.0~rc1-2) experimental; urgency=medium
 
   * Also package mistral_tempest_tests.
 
