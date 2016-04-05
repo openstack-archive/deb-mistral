@@ -1,5 +1,6 @@
-mistral (2.0.0~rc1-4) unstable; urgency=medium
+mistral (2.0.0~rc2-1) unstable; urgency=medium
 
+  * New upstream release.
   * Uploading to unstable.
   * Updated fr.po debconf translation (Closes: #814203).
   * Updated ja.po debconf translation (Closes: #819134).
