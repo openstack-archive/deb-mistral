@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mistral 1.0.0~rc1-1\n"
 "Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
-"POT-Creation-Date: 2015-10-14 15:26+0000\n"
+"POT-Creation-Date: 2016-04-05 11:01+0200\n"
 "PO-Revision-Date: 2015-10-22 23:20+0100\n"
 "Last-Translator: Américo Monteiro <a_monteiro@gmx.com>\n"
 "Language-Team: Portuguese <traduz@debianpt.org>\n"
@@ -216,9 +216,14 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../mistral-api.templates:2001
+#, fuzzy
+#| msgid ""
+#| "Note that you will need to have an up and running Keystone server on "
+#| "which to connect using the Keystone authentication token."
 msgid ""
 "Note that you will need to have an up and running Keystone server on which "
-"to connect using the Keystone authentication token."
+"to connect using a known admin project name, admin username and password. "
+"The admin auth token is not used anymore."
 msgstr ""
 "Note que irá precisar de ter um servidor Keystone a funcionar no qual ligar "
 "usando o sinal de autenticação do Keystone."
@@ -240,38 +245,55 @@ msgstr ""
 "possa contactar o Keystone para fazer o serviço Mistral e a criação do "
 "\"endpoint\"."
 
-#. Type: password
+#. Type: string
 #. Description
 #: ../mistral-api.templates:4001
-msgid "Keystone authentication token:"
+#, fuzzy
+#| msgid "Keystone authentication token:"
+msgid "Keystone admin name:"
 msgstr "Sinal de autenticação do Keystone:"
 
+#. Type: string
+#. Description
+#. Type: string
+#. Description
 #. Type: password
 #. Description
-#: ../mistral-api.templates:4001
+#: ../mistral-api.templates:4001 ../mistral-api.templates:5001
+#: ../mistral-api.templates:6001
 msgid ""
-"To configure its endpoint in Keystone, mistral-api needs the Keystone "
-"authentication token."
+"To register the service endpoint, this package needs to know the Admin "
+"login, name, project name, and password to the Keystone server."
 msgstr ""
-"Para configurar o seu endpoint no Keystone, o mistral-api precisa do "
-"sinal de autenticação do Keystone."
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:5001
+msgid "Keystone admin project name:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:6001
+msgid "Keystone admin password:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:7001
 msgid "Mistral endpoint IP address:"
 msgstr "Endereço IP endpoint do Mistral:"
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../mistral-api.templates:7001
 msgid "Please enter the IP address that will be used to contact Mistral."
 msgstr ""
 "Por favor indique o endereço IP que será usado para contactar o Mistral."
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../mistral-api.templates:7001
 msgid ""
 "This IP address should be accessible from the clients that will use this "
 "service, so if you are installing a public cloud, this should be a public IP "
@@ -283,13 +305,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../mistral-api.templates:8001
 msgid "Name of the region to register:"
 msgstr "Nome da região a registar:"
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../mistral-api.templates:8001
 msgid ""
 "OpenStack supports using availability zones, with each region representing a "
 "location. Please enter the zone that you wish to use when registering the "
@@ -298,3 +320,10 @@ msgstr ""
 "O OpenStack suporta usar zonas de disponibilidade, com cada região a "
 "representar um local. Por favor indique a zona que deseja usar ao registar o "
 "endpoint."
+
+#~ msgid ""
+#~ "To configure its endpoint in Keystone, mistral-api needs the Keystone "
+#~ "authentication token."
+#~ msgstr ""
+#~ "Para configurar o seu endpoint no Keystone, o mistral-api precisa do "
+#~ "sinal de autenticação do Keystone."

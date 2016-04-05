@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: glance 2013.1.2-4\n"
 "Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
-"POT-Creation-Date: 2015-10-14 15:26+0000\n"
+"POT-Creation-Date: 2016-04-05 11:01+0200\n"
 "PO-Revision-Date: 2013-08-25 13:01+0200\n"
 "Last-Translator: Michal Simunek <michal.simunek@gmail.com>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
@@ -250,7 +250,8 @@ msgstr ""
 #| "which to connect using the Keystone auth token."
 msgid ""
 "Note that you will need to have an up and running Keystone server on which "
-"to connect using the Keystone authentication token."
+"to connect using a known admin project name, admin username and password. "
+"The admin auth token is not used anymore."
 msgstr ""
 "Berte na vědomí, že musíte mít běžící server keystone, na který se lze "
 "připojit pomocí ověřovacího klíče pro Keystone."
@@ -277,31 +278,42 @@ msgstr ""
 "Zadejte IP adresu serveru keystone, aby se mohlo glance-api spojit s "
 "Keystone a provozovat službu Glance a vytvářet koncové body."
 
-#. Type: password
+#. Type: string
 #. Description
 #: ../mistral-api.templates:4001
 #, fuzzy
 #| msgid "Keystone Auth Token:"
-msgid "Keystone authentication token:"
+msgid "Keystone admin name:"
 msgstr "Autentizační klíč pro Keystone:"
 
+#. Type: string
+#. Description
+#. Type: string
+#. Description
 #. Type: password
 #. Description
-#: ../mistral-api.templates:4001
-#, fuzzy
-#| msgid ""
-#| "To configure its endpoint in Keystone, glance-api needs the Keystone auth "
-#| "token."
+#: ../mistral-api.templates:4001 ../mistral-api.templates:5001
+#: ../mistral-api.templates:6001
 msgid ""
-"To configure its endpoint in Keystone, mistral-api needs the Keystone "
-"authentication token."
+"To register the service endpoint, this package needs to know the Admin "
+"login, name, project name, and password to the Keystone server."
 msgstr ""
-"Aby mohlo glance-api nastavit v Keystone svůj koncový bod, potřebuje "
-"autentizační klíč pro Keystone."
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:5001
+msgid "Keystone admin project name:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:6001
+msgid "Keystone admin password:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:7001
 #, fuzzy
 #| msgid "Glance endpoint IP address:"
 msgid "Mistral endpoint IP address:"
@@ -309,7 +321,7 @@ msgstr "IP adresa koncového bodu Glance:"
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../mistral-api.templates:7001
 #, fuzzy
 #| msgid ""
 #| "Enter the IP address that will be used to contact Glance (eg: the Glance "
@@ -321,7 +333,7 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../mistral-api.templates:7001
 msgid ""
 "This IP address should be accessible from the clients that will use this "
 "service, so if you are installing a public cloud, this should be a public IP "
@@ -333,13 +345,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../mistral-api.templates:8001
 msgid "Name of the region to register:"
 msgstr "Název registrované oblasti:"
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../mistral-api.templates:8001
 #, fuzzy
 #| msgid ""
 #| "Openstack can be used using availability zones, with each region "
@@ -353,6 +365,17 @@ msgstr ""
 "Openstack lze využívat pomocí oblastí dostupnosti, přičemž každá oblast "
 "představuje místo. Zadejte prosím oblast, kterou chcete použít při "
 "registraci koncového bodu."
+
+#, fuzzy
+#~| msgid ""
+#~| "To configure its endpoint in Keystone, glance-api needs the Keystone "
+#~| "auth token."
+#~ msgid ""
+#~ "To configure its endpoint in Keystone, mistral-api needs the Keystone "
+#~ "authentication token."
+#~ msgstr ""
+#~ "Aby mohlo glance-api nastavit v Keystone svůj koncový bod, potřebuje "
+#~ "autentizační klíč pro Keystone."
 
 #~ msgid "Pipeline flavor:"
 #~ msgstr "Příznak pro rouru:"

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: glance 2013.2-1\n"
 "Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
-"POT-Creation-Date: 2015-10-14 15:26+0000\n"
+"POT-Creation-Date: 2016-04-05 11:01+0200\n"
 "PO-Revision-Date: 2013-11-17 08:45+0400\n"
 "Last-Translator: Yuri Kozlov <yuray@komyakino.ru>\n"
 "Language-Team: Russian <debian-l10n-russian@lists.debian.org>\n"
@@ -225,9 +225,14 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../mistral-api.templates:2001
+#, fuzzy
+#| msgid ""
+#| "Note that you will need to have an up and running Keystone server on "
+#| "which to connect using the Keystone authentication token."
 msgid ""
 "Note that you will need to have an up and running Keystone server on which "
-"to connect using the Keystone authentication token."
+"to connect using a known admin project name, admin username and password. "
+"The admin auth token is not used anymore."
 msgstr ""
 "Заметим, что у вас должен быть работающий сервер Keystone, к которому будет "
 "произведено подключение с помощью токена аутентификации Keystone."
@@ -252,29 +257,42 @@ msgstr ""
 "Введите IP-адрес сервера Keystone для того, чтобы glance-api могла "
 "подключиться к Keystone для запуска службы Glance и создания конечной точки."
 
-#. Type: password
-#. Description
-#: ../mistral-api.templates:4001
-msgid "Keystone authentication token:"
-msgstr "Токен аутентификации Keystone:"
-
-#. Type: password
+#. Type: string
 #. Description
 #: ../mistral-api.templates:4001
 #, fuzzy
-#| msgid ""
-#| "To configure its endpoint in Keystone, glance-api needs the Keystone "
-#| "authentication token."
+#| msgid "Keystone authentication token:"
+msgid "Keystone admin name:"
+msgstr "Токен аутентификации Keystone:"
+
+#. Type: string
+#. Description
+#. Type: string
+#. Description
+#. Type: password
+#. Description
+#: ../mistral-api.templates:4001 ../mistral-api.templates:5001
+#: ../mistral-api.templates:6001
 msgid ""
-"To configure its endpoint in Keystone, mistral-api needs the Keystone "
-"authentication token."
+"To register the service endpoint, this package needs to know the Admin "
+"login, name, project name, and password to the Keystone server."
 msgstr ""
-"Для настройки собственной конечной точки в Keystone glance-api требуется "
-"токен аутентификации Keystone."
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:5001
+msgid "Keystone admin project name:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:6001
+msgid "Keystone admin password:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:7001
 #, fuzzy
 #| msgid "Glance endpoint IP address:"
 msgid "Mistral endpoint IP address:"
@@ -282,7 +300,7 @@ msgstr "IP-адрес конечной точки Glance:"
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../mistral-api.templates:7001
 #, fuzzy
 #| msgid "Please enter the IP address that will be used to contact Glance."
 msgid "Please enter the IP address that will be used to contact Mistral."
@@ -290,7 +308,7 @@ msgstr "Введите IP-адрес, который будет использо
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../mistral-api.templates:7001
 msgid ""
 "This IP address should be accessible from the clients that will use this "
 "service, so if you are installing a public cloud, this should be a public IP "
@@ -302,13 +320,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../mistral-api.templates:8001
 msgid "Name of the region to register:"
 msgstr "Название области для регистрации:"
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../mistral-api.templates:8001
 msgid ""
 "OpenStack supports using availability zones, with each region representing a "
 "location. Please enter the zone that you wish to use when registering the "
@@ -317,6 +335,17 @@ msgstr ""
 "Openstack поддерживает разделение на зоны доступности, где каждая область "
 "представляет определённое расположение. Введите зону, которую вы хотите "
 "использовать при регистрации конечной точки."
+
+#, fuzzy
+#~| msgid ""
+#~| "To configure its endpoint in Keystone, glance-api needs the Keystone "
+#~| "authentication token."
+#~ msgid ""
+#~ "To configure its endpoint in Keystone, mistral-api needs the Keystone "
+#~ "authentication token."
+#~ msgstr ""
+#~ "Для настройки собственной конечной точки в Keystone glance-api требуется "
+#~ "токен аутентификации Keystone."
 
 #~ msgid "keystone"
 #~ msgstr "keystone"

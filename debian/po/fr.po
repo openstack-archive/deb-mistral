@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: manila\n"
 "Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
-"POT-Creation-Date: 2015-10-14 15:26+0000\n"
+"POT-Creation-Date: 2016-04-05 11:01+0200\n"
 "PO-Revision-Date: 2015-11-28 14:49+0100\n"
 "Last-Translator: Jean-Pierre Giraud <jean-pierregiraud@neuf.fr>\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
@@ -219,9 +219,14 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../mistral-api.templates:2001
+#, fuzzy
+#| msgid ""
+#| "Note that you will need to have an up and running Keystone server on "
+#| "which to connect using the Keystone authentication token."
 msgid ""
 "Note that you will need to have an up and running Keystone server on which "
-"to connect using the Keystone authentication token."
+"to connect using a known admin project name, admin username and password. "
+"The admin auth token is not used anymore."
 msgstr ""
 "Veuillez noter que vous aurez besoin d'avoir un serveur Keystone fonctionnel "
 "sur lequel se connecter pour utiliser le jeton d'authentification Keystone."
@@ -239,42 +244,59 @@ msgid ""
 "Please enter the IP address of the Keystone server, so that mistral-api can "
 "contact Keystone to do the Mistral service and endpoint creation."
 msgstr ""
-"Veuillez indiquer l'adresse IP du serveur Keystone, pour que l'API de Mistral "
-"puisse contacter Keystone pour établir le service Mistral et créer le point "
-"d'accès."
+"Veuillez indiquer l'adresse IP du serveur Keystone, pour que l'API de "
+"Mistral puisse contacter Keystone pour établir le service Mistral et créer "
+"le point d'accès."
 
-#. Type: password
+#. Type: string
 #. Description
 #: ../mistral-api.templates:4001
-msgid "Keystone authentication token:"
+#, fuzzy
+#| msgid "Keystone authentication token:"
+msgid "Keystone admin name:"
 msgstr "Jeton d'authentification Keystone : "
 
+#. Type: string
+#. Description
+#. Type: string
+#. Description
 #. Type: password
 #. Description
-#: ../mistral-api.templates:4001
+#: ../mistral-api.templates:4001 ../mistral-api.templates:5001
+#: ../mistral-api.templates:6001
 msgid ""
-"To configure its endpoint in Keystone, mistral-api needs the Keystone "
-"authentication token."
+"To register the service endpoint, this package needs to know the Admin "
+"login, name, project name, and password to the Keystone server."
 msgstr ""
-"Pour configurer son point d'accès dans Keystone, l'API de Mistral a besoin du "
-"jeton d'authentification Keystone."
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:5001
+msgid "Keystone admin project name:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mistral-api.templates:6001
+msgid "Keystone admin password:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../mistral-api.templates:7001
 msgid "Mistral endpoint IP address:"
 msgstr "Adresse IP du point d'accès Mistral : "
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../mistral-api.templates:7001
 msgid "Please enter the IP address that will be used to contact Mistral."
 msgstr ""
 "Veuillez indiquer l'adresse IP qui sera utilisée pour contacter Mistral."
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:5001
+#: ../mistral-api.templates:7001
 msgid ""
 "This IP address should be accessible from the clients that will use this "
 "service, so if you are installing a public cloud, this should be a public IP "
@@ -286,13 +308,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../mistral-api.templates:8001
 msgid "Name of the region to register:"
 msgstr "Nom de la région à enregistrer : "
 
 #. Type: string
 #. Description
-#: ../mistral-api.templates:6001
+#: ../mistral-api.templates:8001
 msgid ""
 "OpenStack supports using availability zones, with each region representing a "
 "location. Please enter the zone that you wish to use when registering the "
@@ -301,6 +323,13 @@ msgstr ""
 "OpenStack gère l'utilisation de zones disponibles, avec chaque région "
 "représentant un lieu. Veuillez entrer une zone que vous souhaitez utiliser "
 "lors de l'enregistrement d'un point d'accès."
+
+#~ msgid ""
+#~ "To configure its endpoint in Keystone, mistral-api needs the Keystone "
+#~ "authentication token."
+#~ msgstr ""
+#~ "Pour configurer son point d'accès dans Keystone, l'API de Mistral a "
+#~ "besoin du jeton d'authentification Keystone."
 
 #~ msgid "Manila volume group:"
 #~ msgstr "Groupe de volumes de Manila :"
