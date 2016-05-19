@@ -1,14 +1,14 @@
-# Debconf translations for glance.
-# Copyright (C) 2012 THE glance'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the glance package.
-# Adriano Rafael Gomes <adrianorg@arg.eti.br>, 2012-2014.
+# Debconf translations for mistral.
+# Copyright (C) 2012 THE mistral'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the mistral package.
+# Adriano Rafael Gomes <adrianorg@arg.eti.br>, 2012-2016.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: glance 2014.1.2-1\n"
+"Project-Id-Version: mistral\n"
 "Report-Msgid-Bugs-To: mistral@packages.debian.org\n"
 "POT-Creation-Date: 2016-04-05 11:01+0200\n"
-"PO-Revision-Date: 2014-09-04 08:49-0300\n"
+"PO-Revision-Date: 2016-04-07 08:03-0300\n"
 "Last-Translator: Adriano Rafael Gomes <adrianorg@arg.eti.br>\n"
 "Language-Team: Brazilian Portuguese <debian-l10n-portuguese@lists.debian."
 "org>\n"
@@ -20,26 +20,18 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../mistral-common.templates:2001
-#, fuzzy
-#| msgid "Set up a database for Glance?"
 msgid "Set up a database for Mistral?"
-msgstr "Configurar um banco de dados para o Glance?"
+msgstr "Configurar um banco de dados para o Mistral?"
 
 #. Type: boolean
 #. Description
 #: ../mistral-common.templates:2001
-#, fuzzy
-#| msgid ""
-#| "No database has been set up for glance-registry or glance-api to use. "
-#| "Before continuing, you should make sure you have the following "
-#| "information:"
 msgid ""
 "No database has been set up for Mistral to use. Before continuing, you "
 "should make sure you have the following information:"
 msgstr ""
-"Nenhum banco de dados foi configurado para o glance-registry ou para o "
-"glance-api utilizar. Antes de continuar, você deve se certificar que você "
-"tem as seguintes informações:"
+"Nenhum banco de dados foi configurado para o Mistral utilizar. Antes de "
+"continuar, você deve se certificar que você tem as seguintes informações:"
 
 #. Type: boolean
 #. Description
@@ -69,16 +61,12 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../mistral-common.templates:2001
-#, fuzzy
-#| msgid ""
-#| "You can change this setting later on by running \"dpkg-reconfigure -plow "
-#| "glance-common\"."
 msgid ""
 "You can change this setting later on by running \"dpkg-reconfigure -plow "
 "mistral-common\"."
 msgstr ""
 "Você pode mudar essa configuração depois, executando \"dpkg-reconfigure -"
-"plow glance-common\"."
+"plow mistral-common\"."
 
 #. Type: string
 #. Description
@@ -89,18 +77,13 @@ msgstr "Nome de máquina do servidor de autenticação:"
 #. Type: string
 #. Description
 #: ../mistral-common.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please specify the hostname of the authentication server for Glance. "
-#| "Typically this is also the hostname of the OpenStack Identity Service "
-#| "(Keystone)."
 msgid ""
 "Please specify the hostname of the authentication server. Typically this is "
 "also the hostname of the OpenStack Identity Service (Keystone)."
 msgstr ""
-"Por favor, especifique o nome de máquina do seu servidor de autenticação "
-"para o Glance. Tipicamente, esse é também o nome de máquina do Serviço de "
-"Identidade do OpenStack (Keystone)."
+"Por favor, especifique o nome de máquina do seu servidor de autenticação. "
+"Tipicamente, esse é também o nome de máquina do Serviço de Identidade do "
+"OpenStack (Keystone)."
 
 #. Type: string
 #. Description
@@ -214,10 +197,8 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../mistral-api.templates:2001
-#, fuzzy
-#| msgid "Register Glance in the Keystone endpoint catalog?"
 msgid "Register Mistral in the Keystone endpoint catalog?"
-msgstr "Registrar o Glance no catálogo de \"endpoint\" do Keystone?"
+msgstr "Registrar o Mistral no catálogo de \"endpoint\" do Keystone?"
 
 #. Type: boolean
 #. Description
@@ -234,17 +215,15 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../mistral-api.templates:2001
-#, fuzzy
-#| msgid ""
-#| "Note that you will need to have an up and running Keystone server on "
-#| "which to connect using the Keystone authentication token."
 msgid ""
 "Note that you will need to have an up and running Keystone server on which "
 "to connect using a known admin project name, admin username and password. "
 "The admin auth token is not used anymore."
 msgstr ""
 "Note que você precisará ter um servidor Keystone configurado e em execução "
-"no qual conectar usando o \"token\" de autenticação do Keystone."
+"no qual conectar usando um nome de projeto de admin, nome de usuário de "
+"admin e senha conhecidos. O \"token\" de autenticação do admin não é mais "
+"usado."
 
 #. Type: string
 #. Description
@@ -255,25 +234,19 @@ msgstr "Endereço IP do servidor Keystone:"
 #. Type: string
 #. Description
 #: ../mistral-api.templates:3001
-#, fuzzy
-#| msgid ""
-#| "Please enter the IP address of the Keystone server, so that glance-api "
-#| "can contact Keystone to do the Glance service and endpoint creation."
 msgid ""
 "Please enter the IP address of the Keystone server, so that mistral-api can "
 "contact Keystone to do the Mistral service and endpoint creation."
 msgstr ""
-"Por favor, informe o endereço IP do servidor Keystone, de forma que o glance-"
-"api possa contatar o Keystone para efetuar a criação do \"endpoint\" e do "
-"serviço Glance."
+"Por favor, informe o endereço IP do servidor Keystone, de forma que o "
+"mistral-api possa contatar o Keystone para efetuar a criação do \"endpoint\" "
+"e do serviço Mistral."
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:4001
-#, fuzzy
-#| msgid "Keystone authentication token:"
 msgid "Keystone admin name:"
-msgstr "\"Token\" de autenticação Keystone:"
+msgstr "Nome de admin do Keystone:"
 
 #. Type: string
 #. Description
@@ -287,35 +260,33 @@ msgid ""
 "To register the service endpoint, this package needs to know the Admin "
 "login, name, project name, and password to the Keystone server."
 msgstr ""
+"Para registrar o \"endpoint\" do serviço, esse pacote precisa saber o login, "
+"nome, nome do projeto e senha do Admin no servidor Keystone."
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:5001
 msgid "Keystone admin project name:"
-msgstr ""
+msgstr "Nome do projeto admin no Keystone:"
 
 #. Type: password
 #. Description
 #: ../mistral-api.templates:6001
 msgid "Keystone admin password:"
-msgstr ""
+msgstr "Senha do admin no Keystone:"
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:7001
-#, fuzzy
-#| msgid "Glance endpoint IP address:"
 msgid "Mistral endpoint IP address:"
-msgstr "Endereço IP do \"endpoint\" Glance:"
+msgstr "Endereço IP do \"endpoint\" Mistral:"
 
 #. Type: string
 #. Description
 #: ../mistral-api.templates:7001
-#, fuzzy
-#| msgid "Please enter the IP address that will be used to contact Glance."
 msgid "Please enter the IP address that will be used to contact Mistral."
 msgstr ""
-"Por favor, informe o endereço IP que será usado para contatar o Glance."
+"Por favor, informe o endereço IP que será usado para contatar o Mistral."
 
 #. Type: string
 #. Description
@@ -347,7 +318,6 @@ msgstr ""
 "representando uma localidade. Por favor, informe a zona que você deseja usar "
 "ao registrar o \"endpoint\"."
 
-#, fuzzy
 #~| msgid ""
 #~| "To configure its endpoint in Keystone, glance-api needs the Keystone "
 #~| "authentication token."
@@ -355,7 +325,7 @@ msgstr ""
 #~ "To configure its endpoint in Keystone, mistral-api needs the Keystone "
 #~ "authentication token."
 #~ msgstr ""
-#~ "Para configurar o seu \"endpoint\" no Keystone, o glance-api precisa do "
+#~ "Para configurar o seu \"endpoint\" no Keystone, o mistral-api precisa do "
 #~ "\"token\" de autenticação do Keystone."
 
 #~ msgid "keystone"
