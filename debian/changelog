@@ -2,6 +2,7 @@ mistral (3.0.0~b1-1) experimental; urgency=medium
 
   * New upstream release.
   * Fixed (build-)depends for this release.
+  * Removed also-package-mistral_tempest_tests.patch applied upstream.
 
  -- Thomas Goirand <zigo@debian.org>  Sun, 12 Jun 2016 23:18:12 +0200
 
