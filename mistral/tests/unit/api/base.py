@@ -20,18 +20,17 @@ import pecan
 import pecan.testing
 from webtest import app as webtest_app
 
+from mistral.services import periodic
 from mistral.tests.unit import base
 
 # Disable authentication for functional tests.
 cfg.CONF.set_default('auth_enable', False, group='pecan')
 
-__all__ = ['FunctionalTest']
 
-
-class FunctionalTest(base.DbTestCase):
+class APITest(base.DbTestCase):
 
     def setUp(self):
-        super(FunctionalTest, self).setUp()
+        super(APITest, self).setUp()
 
         pecan_opts = cfg.CONF.pecan
 
@@ -40,14 +39,23 @@ class FunctionalTest(base.DbTestCase):
                 'root': pecan_opts.root,
                 'modules': pecan_opts.modules,
                 'debug': pecan_opts.debug,
-                'auth_enable': False
+                'auth_enable': False,
+                'disable_cron_trigger_thread': True
             }
         })
+
         self.addCleanup(pecan.set_config, {}, overwrite=True)
-        self.addCleanup(cfg.CONF.set_default, 'auth_enable', False,
+        self.addCleanup(cfg.CONF.set_default,
+                        'auth_enable',
+                        False,
                         group='pecan')
 
-        # make sure the api get the correct context.
+        # Adding cron trigger thread clean up explicitly in case if
+        # new tests will provide an alternative configuration for pecan
+        # application.
+        self.addCleanup(periodic.stop_all_periodic_tasks)
+
+        # Make sure the api get the correct context.
         self.patch_ctx = mock.patch('mistral.context.context_from_headers')
         self.mock_ctx = self.patch_ctx.start()
         self.mock_ctx.return_value = self.ctx

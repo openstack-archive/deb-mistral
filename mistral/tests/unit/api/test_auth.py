@@ -57,7 +57,7 @@ PKI_TOKEN_VERIFIED = {
 }
 
 
-class TestKeystoneMiddleware(base.FunctionalTest):
+class TestKeystoneMiddleware(base.APITest):
     """Test keystone middleware AuthProtocol.
 
     It checks that keystone middleware AuthProtocol is executed
@@ -66,12 +66,15 @@ class TestKeystoneMiddleware(base.FunctionalTest):
 
     def setUp(self):
         super(TestKeystoneMiddleware, self).setUp()
+
         cfg.CONF.set_default('auth_enable', True, group='pecan')
+
         self.app = pecan.testing.load_test_app({
             'app': {
                 'root': cfg.CONF.pecan.root,
                 'modules': cfg.CONF.pecan.modules,
                 'debug': cfg.CONF.pecan.debug,
-                'auth_enable': cfg.CONF.pecan.auth_enable
+                'auth_enable': cfg.CONF.pecan.auth_enable,
+                'disable_cron_trigger_thread': True
             }
         })

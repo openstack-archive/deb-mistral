@@ -53,7 +53,7 @@ workflows:
       task1:
         action: std.echo output=<% $.param1 %>
         publish:
-            var: <% $.task1 %>
+            var: <% task(task1).result %>
 
       task2:
         action: std.echo output=<% $.param2 %>
@@ -89,7 +89,7 @@ ENVIRONMENT_DB = models.Environment(
 )
 
 MOCK_ENVIRONMENT = mock.MagicMock(return_value=ENVIRONMENT_DB)
-MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
+MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundException())
 
 
 class DefaultEngineTest(base.DbTestCase):
@@ -233,7 +233,7 @@ class DefaultEngineTest(base.DbTestCase):
 
     @mock.patch.object(db_api, "get_environment", MOCK_NOT_FOUND)
     def test_start_workflow_env_not_found(self):
-        self.assertRaises(exc.NotFoundException,
+        self.assertRaises(exc.DBEntityNotFoundException,
                           self.engine.start_workflow,
                           'wb.wf',
                           {'param1': '<% env().key1 %>'},
@@ -364,7 +364,6 @@ class DefaultEngineTest(base.DbTestCase):
         self.assertEqual(states.SUCCESS, task2_action_ex.state)
 
         # Data Flow properties.
-        self.assertIn('__tasks', task2_ex.in_context)
         self.assertIn('__execution', task1_ex.in_context)
         self.assertDictEqual({'output': 'Hi'}, task2_action_ex.input)
         self.assertDictEqual({}, task2_ex.published)

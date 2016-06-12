@@ -53,7 +53,7 @@ def get_controller(wf_ex, wf_spec=None):
             break
 
     if not ctrl_cls:
-        raise exc.NotFoundException(
+        raise exc.MistralError(
             'Failed to find a workflow controller [type=%s]' % wf_type
         )
 
@@ -83,7 +83,8 @@ class WorkflowController(object):
 
         self.wf_spec = wf_spec
 
-    def _update_task_ex_env(self, task_ex, env):
+    @staticmethod
+    def _update_task_ex_env(task_ex, env):
         if not env:
             return task_ex
 

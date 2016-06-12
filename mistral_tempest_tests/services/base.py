@@ -31,8 +31,8 @@ CONF = config.CONF
 
 
 def get_resource(path):
-    main_package = 'mistral'
-    dir_path = __file__[0:__file__.find(main_package) + len(main_package) + 1]
+    main_package = 'mistral_tempest_tests'
+    dir_path = __file__[0:__file__.find(main_package)]
 
     return open(dir_path + 'mistral/tests/resources/' + path).read()
 
@@ -58,7 +58,8 @@ class MistralClientBase(rest_client.RestClient):
         super(MistralClientBase, self).__init__(
             auth_provider=auth_provider,
             service=service_type,
-            region=CONF.identity.region
+            region=CONF.identity.region,
+            disable_ssl_certificate_validation=True
         )
 
         if service_type not in ('workflow', 'workflowv2'):

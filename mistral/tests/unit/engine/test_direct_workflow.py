@@ -34,9 +34,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         wf_ex = self.engine.start_workflow('wf', {})
 
-        self._await(
-            lambda: self.is_execution_in_state(wf_ex.id, expected_state)
-        )
+        self.await_execution_state(wf_ex.id, expected_state)
 
         return db_api.get_workflow_execution(wf_ex.id)
 
@@ -84,9 +82,9 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         self.assertEqual(3, len(tasks))
 
-        self._await(lambda: self.is_task_success(task1.id))
-        self._await(lambda: self.is_task_success(task3.id))
-        self._await(lambda: self.is_task_success(task4.id))
+        self.await_task_success(task1.id)
+        self.await_task_success(task3.id)
+        self.await_task_success(task4.id)
 
         self.assertTrue(wf_ex.state, states.ERROR)
 
@@ -116,7 +114,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
         wf_service.create_workflows(wf_text)
         wf_ex = self.engine.start_workflow('wf', {})
 
-        self._await(lambda: self.is_execution_error(wf_ex.id))
+        self.await_execution_error(wf_ex.id)
 
         wf_ex = db_api.get_workflow_execution(wf_ex.id)
         tasks = wf_ex.task_executions
@@ -125,7 +123,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         self.assertEqual(1, len(tasks))
 
-        self._await(lambda: self.is_task_error(task1.id))
+        self.await_task_error(task1.id)
 
         self.assertTrue(wf_ex.state, states.ERROR)
 
@@ -145,9 +143,10 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
         """
 
         wf_service.create_workflows(wf_text)
+
         wf_ex = self.engine.start_workflow('wf', {})
 
-        self._await(lambda: self.is_execution_success(wf_ex.id))
+        self.await_execution_success(wf_ex.id)
 
         self.assertEqual(
             states.SUCCESS,
@@ -182,11 +181,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         wf_ex = self._run_workflow(wf_text)
 
-        self.assertIn(
-            'Invalid input',
-            wf_ex.state_info
-        )
-
+        self.assertIn('Invalid input', wf_ex.state_info)
         self.assertTrue(wf_ex.state, states.ERROR)
 
     def test_wrong_first_task_input(self):
@@ -417,6 +412,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
         wf:
           input:
             - var
+
           tasks:
             task1:
               action: std.echo output=<% $.var + $.var2 %>
@@ -457,7 +453,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
 
         wf_ex = self.engine.start_workflow('wf', {})
 
-        self._await(lambda: self.is_execution_success(wf_ex.id))
+        self.await_execution_success(wf_ex.id)
 
     def test_task_on_clause_has_yaql_error(self):
         wf_text = """
@@ -490,7 +486,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
             name='task1'
         )
 
-        self.assertEqual(states.SUCCESS, task_1_ex.state)
+        self.assertEqual(states.ERROR, task_1_ex.state)
 
         # Assert that there is only one action execution and it's SUCCESS.
         task_1_action_exs = db_api.get_action_executions(
@@ -556,7 +552,7 @@ class DirectWorkflowEngineTest(base.EngineTestCase):
             name='task1'
         )
 
-        self.assertEqual(states.SUCCESS, task_1_ex.state)
+        self.assertEqual(states.ERROR, task_1_ex.state)
 
         task_1_action_exs = db_api.get_action_executions(
             task_execution_id=task_1_ex.id

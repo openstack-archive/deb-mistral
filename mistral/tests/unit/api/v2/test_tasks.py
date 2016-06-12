@@ -127,7 +127,7 @@ MOCK_WF_EX = mock.MagicMock(return_value=WF_EX)
 MOCK_TASK = mock.MagicMock(return_value=TASK_EX)
 MOCK_TASKS = mock.MagicMock(return_value=[TASK_EX])
 MOCK_EMPTY = mock.MagicMock(return_value=[])
-MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
+MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundException())
 MOCK_ERROR_TASK = mock.MagicMock(return_value=ERROR_TASK_EX)
 MOCK_ERROR_ITEMS_TASK = mock.MagicMock(return_value=ERROR_ITEMS_TASK_EX)
 
@@ -136,7 +136,7 @@ MOCK_ERROR_ITEMS_TASK = mock.MagicMock(return_value=ERROR_ITEMS_TASK_EX)
     data_flow,
     'get_task_execution_result', mock.Mock(return_value=RESULT)
 )
-class TestTasksController(base.FunctionalTest):
+class TestTasksController(base.APITest):
     @mock.patch.object(db_api, 'get_task_execution', MOCK_TASK)
     def test_get(self):
         resp = self.app.get('/v2/tasks/123')

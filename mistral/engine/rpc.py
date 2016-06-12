@@ -19,6 +19,7 @@ from oslo_log import log as logging
 import oslo_messaging as messaging
 from oslo_messaging.rpc import client
 from oslo_messaging.rpc import dispatcher
+from oslo_messaging.rpc import server
 
 from mistral import context as auth_ctx
 from mistral.engine import base
@@ -35,55 +36,12 @@ _ENGINE_CLIENT = None
 _EXECUTOR_CLIENT = None
 
 
-# TODO(nmakhotkin): Delete this once oslo_messaging version
-# TODO(nmakhotkin): is >= 4.4.0 in global requirements.
-# Declare different classes for < 4.4.0 oslo_messaging
-# and >= 4.4.0 oslo_messaging:
-# >= 4.4.0 doesn't contain 'executor_callback' argument anymore.
-if 'executor_callback' in inspect.getargspec(
-    dispatcher.RPCDispatcher.__call__
-).args:
-    # For < 4.4.0.
-    class RPCDispatcherPostAck(dispatcher.RPCDispatcher):
-        def __call__(self, incoming, executor_callback=None):
-            return dispatcher.dispatcher.DispatcherExecutorContext(
-                incoming,
-                self._dispatch_and_reply,
-                executor_callback=executor_callback
-            )
-
-        def _dispatch_and_reply(self, incoming, executor_callback):
-            incoming = incoming[0]
-
-            super(RPCDispatcherPostAck, self)._dispatch_and_reply(
-                incoming,
-                executor_callback
-            )
-
-            incoming.acknowledge()
-else:
-    # For >= 4.4.0
-    class RPCDispatcherPostAck(dispatcher.RPCDispatcher):
-        def __call__(self, incoming):
-            return dispatcher.dispatcher.DispatcherExecutorContext(
-                incoming,
-                self._dispatch_and_reply
-            )
-
-        def _dispatch_and_reply(self, incoming):
-            incoming = incoming[0]
-
-            super(RPCDispatcherPostAck, self)._dispatch_and_reply(incoming)
-
-            incoming.acknowledge()
-
-
 def get_rpc_server(transport, target, endpoints, executor='blocking',
                    serializer=None):
-    dispatcher = RPCDispatcherPostAck(target, endpoints, serializer)
-    return messaging.server.MessageHandlingServer(
+    return server.RPCServer(
         transport,
-        dispatcher,
+        target,
+        dispatcher.RPCDispatcher(endpoints, serializer),
         executor
     )
 
@@ -138,6 +96,10 @@ class EngineServer(object):
         """Receives calls over RPC to start workflows on engine.
 
         :param rpc_ctx: RPC request context.
+        :param workflow_identifier: Workflow definition identifier.
+        :param workflow_input: Workflow input.
+        :param description: Workflow execution description.
+        :param params: Additional workflow type specific parameters.
         :return: Workflow execution.
         """
 
@@ -396,6 +358,8 @@ class EngineClient(base.Engine):
         it possibly needs to move the workflow on, i.e. run other workflow
         tasks for which all dependencies are satisfied.
 
+        :param action_ex_id: Action execution id.
+        :param result: Action execution result.
         :return: Task.
         """
 
@@ -408,16 +372,17 @@ class EngineClient(base.Engine):
         )
 
     @wrap_messaging_exception
-    def pause_workflow(self, execution_id):
+    def pause_workflow(self, wf_ex_id):
         """Stops the workflow with the given execution id.
 
+        :param wf_ex_id: Workflow execution id.
         :return: Workflow execution.
         """
 
         return self._client.call(
             auth_ctx.ctx(),
             'pause_workflow',
-            execution_id=execution_id
+            execution_id=wf_ex_id
         )
 
     @wrap_messaging_exception
@@ -429,7 +394,8 @@ class EngineClient(base.Engine):
 
         :param wf_ex_id: Workflow execution id.
         :param task_ex_id: Task execution id.
-        :param reset: If true, then purge action execution for the task.
+        :param reset: If true, then reset task execution state and purge
+            action execution for the task.
         :param env: Environment variables to update.
         :return: Workflow execution.
         """
@@ -460,13 +426,13 @@ class EngineClient(base.Engine):
         )
 
     @wrap_messaging_exception
-    def stop_workflow(self, execution_id, state, message=None):
+    def stop_workflow(self, wf_ex_id, state, message=None):
         """Stops workflow execution with given status.
 
         Once stopped, the workflow is complete with SUCCESS or ERROR,
         and can not be resumed.
 
-        :param execution_id: Workflow execution id
+        :param wf_ex_id: Workflow execution id
         :param state: State assigned to the workflow: SUCCESS or ERROR
         :param message: Optional information string
 
@@ -476,14 +442,16 @@ class EngineClient(base.Engine):
         return self._client.call(
             auth_ctx.ctx(),
             'stop_workflow',
-            execution_id=execution_id,
+            execution_id=wf_ex_id,
             state=state,
             message=message
         )
 
     @wrap_messaging_exception
-    def rollback_workflow(self, execution_id):
+    def rollback_workflow(self, wf_ex_id):
         """Rolls back the workflow with the given execution id.
+
+        :param wf_ex_id: Workflow execution id.
 
         :return: Workflow execution.
         """
@@ -491,7 +459,7 @@ class EngineClient(base.Engine):
         return self._client.call(
             auth_ctx.ctx(),
             'rollback_workflow',
-            execution_id=execution_id
+            execution_id=wf_ex_id
         )
 
 
@@ -506,6 +474,11 @@ class ExecutorServer(object):
         """Receives calls over RPC to run action on executor.
 
         :param rpc_ctx: RPC request context dictionary.
+        :param action_ex_id: Action execution id.
+        :param action_class_str: Action class name.
+        :param attributes: Action class attributes.
+        :param params: Action input parameters.
+        :return: Action result.
         """
 
         LOG.info(
@@ -531,11 +504,12 @@ class ExecutorClient(base.Executor):
         :param transport: Messaging transport.
         :type transport: Transport.
         """
+        self.topic = cfg.CONF.executor.topic
+
         serializer = auth_ctx.RpcContextSerializer(
             auth_ctx.JsonPayloadSerializer()
         )
 
-        self.topic = cfg.CONF.executor.topic
         self._client = messaging.RPCClient(
             transport,
             messaging.Target(),
@@ -544,7 +518,17 @@ class ExecutorClient(base.Executor):
 
     def run_action(self, action_ex_id, action_class_str, attributes,
                    action_params, target=None, async=True):
-        """Sends a request to run action to executor."""
+        """Sends a request to run action to executor.
+
+        :param action_ex_id: Action execution id.
+        :param action_class_str: Action class name.
+        :param attributes: Action class attributes.
+        :param action_params: Action input parameters.
+        :param target: Target (group of action executors).
+        :param async: If True, run action in asynchronous mode (w/o waiting
+            for completion).
+        :return: Action result.
+        """
 
         kwargs = {
             'action_ex_id': action_ex_id,
@@ -557,8 +541,15 @@ class ExecutorClient(base.Executor):
 
         rpc_client_method = call_ctx.cast if async else call_ctx.call
 
-        return rpc_client_method(
-            auth_ctx.ctx(),
-            'run_action',
-            **kwargs
+        res = rpc_client_method(auth_ctx.ctx(), 'run_action', **kwargs)
+
+        # TODO(rakhmerov): It doesn't seem a good approach since we have
+        # a serializer for Result class. A better solution would be to
+        # use a composite serializer that dispatches serialization and
+        # deserialization to concrete serializers depending on object
+        # type.
+
+        return (
+            wf_utils.Result(data=res['data'], error=res['error'])
+            if res else None
         )

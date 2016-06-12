@@ -20,14 +20,23 @@ from mistral import exceptions as exc
 from mistral.workflow import states
 
 
+# TODO(rakhmerov): Seems like it makes sense to get rid of this module in favor
+# of implementing all the needed logic in engine.tasks.WithItemsTask directly.
+
 _CAPACITY = 'capacity'
 _CONCURRENCY = 'concurrency'
 _COUNT = 'count'
 _WITH_ITEMS = 'with_items_context'
 
+_DEFAULT_WITH_ITEMS = {
+    _COUNT: 0,
+    _CONCURRENCY: 0,
+    _CAPACITY: 0
+}
+
 
 def _get_context(task_ex):
-    return task_ex.runtime_context[_WITH_ITEMS]
+    return task_ex.runtime_context.get(_WITH_ITEMS, _DEFAULT_WITH_ITEMS)
 
 
 def get_count(task_ex):
@@ -73,7 +82,7 @@ def _get_with_item_indices(exs):
     :param exs: List of executions.
     :return: a list of numbers.
     """
-    return sorted(set([ex.runtime_context['with_items_index'] for ex in exs]))
+    return sorted(set([ex.runtime_context['index'] for ex in exs]))
 
 
 def _get_accepted_act_exs(task_ex):

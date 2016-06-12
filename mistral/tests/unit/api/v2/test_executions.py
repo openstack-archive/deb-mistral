@@ -111,11 +111,11 @@ MOCK_WF_EXECUTIONS = mock.MagicMock(return_value=[WF_EX])
 MOCK_UPDATED_WF_EX = mock.MagicMock(return_value=UPDATED_WF_EX)
 MOCK_DELETE = mock.MagicMock(return_value=None)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
-MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
+MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundException())
 MOCK_ACTION_EXC = mock.MagicMock(side_effect=exc.ActionException())
 
 
-class TestExecutionsController(base.FunctionalTest):
+class TestExecutionsController(base.APITest):
     @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
     def test_get(self):
         resp = self.app.get('/v2/executions/123')

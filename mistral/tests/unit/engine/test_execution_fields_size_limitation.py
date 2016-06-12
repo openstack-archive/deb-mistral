@@ -108,7 +108,7 @@ class ExecutionFieldsSizeLimitTest(base.EngineTestCase):
         # Start workflow.
         wf_ex = self.engine.start_workflow('wf', {})
 
-        self._await(lambda: self.is_execution_success(wf_ex.id))
+        self.await_execution_success(wf_ex.id)
 
     @expect_size_limit_exception('input')
     def test_workflow_input_default_value_limit(self):
@@ -153,7 +153,7 @@ class ExecutionFieldsSizeLimitTest(base.EngineTestCase):
             'action_output_length': 1024
         })
 
-        self._await(lambda: self.is_execution_error(wf_ex.id))
+        self.await_execution_error(wf_ex.id)
 
         # Note: We need to reread execution to access related tasks.
         wf_ex = db_api.get_workflow_execution(wf_ex.id)
@@ -172,19 +172,19 @@ class ExecutionFieldsSizeLimitTest(base.EngineTestCase):
         # Start workflow.
         wf_ex = self.engine.start_workflow('wf', {})
 
-        self._await(lambda: self.is_execution_error(wf_ex.id))
+        self.await_execution_error(wf_ex.id)
 
         # Note: We need to reread execution to access related tasks.
         wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
         self.assertIn(
-            'Failure caused by error in tasks: task1',
+            'Failed to handle action completion [wf=wf, task=task1',
             wf_ex.state_info
         )
 
         task_ex = self._assert_single_item(wf_ex.task_executions, name='task1')
 
-        self.assertEqual(
+        self.assertIn(
             "Size of 'published' is 1KB which exceeds the limit of 0KB",
             task_ex.state_info
         )

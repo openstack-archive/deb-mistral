@@ -97,11 +97,11 @@ MOCK_WORKBOOKS = mock.MagicMock(return_value=[WORKBOOK_DB])
 MOCK_UPDATED_WORKBOOK = mock.MagicMock(return_value=UPDATED_WORKBOOK_DB)
 MOCK_DELETE = mock.MagicMock(return_value=None)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
-MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
+MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundException())
 MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntryException())
 
 
-class TestWorkbooksController(base.FunctionalTest):
+class TestWorkbooksController(base.APITest):
     @mock.patch.object(db_api, "get_workbook", MOCK_WORKBOOK)
     def test_get(self):
         resp = self.app.get('/v2/workbooks/123')
