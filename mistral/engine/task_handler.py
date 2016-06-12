@@ -60,8 +60,6 @@ def run_task(wf_cmd):
     if task.is_completed():
         wf_handler.check_workflow_completion(wf_cmd.wf_ex)
 
-    return task_ex
-
 
 def on_action_complete(action_ex):
     """Handles action completion event.
