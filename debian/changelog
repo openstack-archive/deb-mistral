@@ -1,3 +1,9 @@
+mistral (3.0.0~b1-2) UNRELEASED; urgency=medium
+
+  * Updated Danish translation of the debconf templates (Closes: #830649).
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 11 Jul 2016 14:35:03 +0200
+
 mistral (3.0.0~b1-1) experimental; urgency=medium
 
   * New upstream release.
