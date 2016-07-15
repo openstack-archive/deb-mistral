@@ -22,11 +22,13 @@ from pecan import rest
 from wsme import types as wtypes
 import wsmeext.pecan as wsme_pecan
 
+from mistral.api import access_control as acl
 from mistral.api.controllers import resource
 from mistral.api.controllers.v2 import member
 from mistral.api.controllers.v2 import types
 from mistral.api.controllers.v2 import validation
 from mistral.api.hooks import content_type as ct_hook
+from mistral import context
 from mistral.db.v2 import api as db_api
 from mistral import exceptions as exc
 from mistral.services import workflows
@@ -152,6 +154,7 @@ class WorkflowsController(rest.RestController, hooks.HookController):
     @wsme_pecan.wsexpose(Workflow, wtypes.text)
     def get(self, identifier):
         """Return the named workflow."""
+        acl.enforce('workflows:get', context.ctx())
         LOG.info("Fetch workflow [identifier=%s]" % identifier)
 
         db_model = db_api.get_workflow_definition(identifier)
@@ -169,6 +172,7 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         The text is allowed to have definitions of multiple workflows. In this
         case they all will be updated.
         """
+        acl.enforce('workflows:update', context.ctx())
         definition = pecan.request.text
         scope = pecan.request.GET.get('scope', 'private')
 
@@ -189,8 +193,8 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         models_dicts = [db_wf.to_dict() for db_wf in db_wfs]
         workflow_list = [Workflow.from_dict(wf) for wf in models_dicts]
 
-        return (workflow_list[0].to_string() if identifier
-                else Workflows(workflows=workflow_list).to_string())
+        return (workflow_list[0].to_json() if identifier
+                else Workflows(workflows=workflow_list).to_json())
 
     @rest_utils.wrap_pecan_controller_exception
     @pecan.expose(content_type="text/plain")
@@ -200,6 +204,7 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         NOTE: The text is allowed to have definitions
             of multiple workflows. In this case they all will be created.
         """
+        acl.enforce('workflows:create', context.ctx())
         definition = pecan.request.text
         scope = pecan.request.GET.get('scope', 'private')
         pecan.response.status = 201
@@ -217,12 +222,13 @@ class WorkflowsController(rest.RestController, hooks.HookController):
 
         workflow_list = [Workflow.from_dict(wf) for wf in models_dicts]
 
-        return Workflows(workflows=workflow_list).to_string()
+        return Workflows(workflows=workflow_list).to_json()
 
     @rest_utils.wrap_wsme_controller_exception
     @wsme_pecan.wsexpose(None, wtypes.text, status_code=204)
     def delete(self, identifier):
         """Delete a workflow."""
+        acl.enforce('workflows:delete', context.ctx())
         LOG.info("Delete workflow [identifier=%s]" % identifier)
 
         with db_api.transaction():
@@ -230,9 +236,14 @@ class WorkflowsController(rest.RestController, hooks.HookController):
 
     @rest_utils.wrap_wsme_controller_exception
     @wsme_pecan.wsexpose(Workflows, types.uuid, int, types.uniquelist,
-                         types.list, types.uniquelist)
+                         types.list, types.uniquelist, wtypes.text,
+                         wtypes.text, wtypes.text, wtypes.text,
+                         types.uniquelist, SCOPE_TYPES, types.uuid,
+                         wtypes.text, wtypes.text)
     def get_all(self, marker=None, limit=None, sort_keys='created_at',
-                sort_dirs='asc', fields=''):
+                sort_dirs='asc', fields='', name=None, input=None,
+                definition=None, tag=None, tags=None, scope=None,
+                project_id=None, created_at=None, updated_at=None):
         """Return a list of workflows.
 
         :param marker: Optional. Pagination marker for large data sets.
@@ -242,51 +253,61 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         :param sort_keys: Optional. Columns to sort results by.
                           Default: created_at.
         :param sort_dirs: Optional. Directions to sort corresponding to
-                          sort_keys, "asc" or "desc" can be choosed.
+                          sort_keys, "asc" or "desc" can be chosen.
                           Default: asc.
         :param fields: Optional. A specified list of fields of the resource to
                        be returned. 'id' will be included automatically in
                        fields if it's provided, since it will be used when
                        constructing 'next' link.
-
-        Where project_id is the same as the requester or
-        project_id is different but the scope is public.
+        :param name: Optional. Keep only resources with a specific name.
+        :param input: Optional. Keep only resources with a specific input.
+        :param definition: Optional. Keep only resources with a specific
+                           definition.
+        :param tag: Optional. Keep only resources with a specific tag. If it is
+                    used with 'tags', it will be appended to the list of
+                    matching tags.
+        :param tags: Optional. Keep only resources containing specific tags.
+        :param scope: Optional. Keep only resources with a specific scope.
+        :param project_id: Optional. The same as the requester project_id
+                           or different if the scope is public.
+        :param created_at: Optional. Keep only resources created at a specific
+                           time and date.
+        :param updated_at: Optional. Keep only resources with specific latest
+                           update time and date.
         """
-        LOG.info("Fetch workflows. marker=%s, limit=%s, sort_keys=%s, "
-                 "sort_dirs=%s, fields=%s", marker, limit, sort_keys,
-                 sort_dirs, fields)
+        acl.enforce('workflows:list', context.ctx())
 
-        if fields and 'id' not in fields:
-            fields.insert(0, 'id')
+        if tag is not None:
+            if tags is None:
+                tags = [tag]
+            else:
+                tags.append(tag)
 
-        rest_utils.validate_query_params(limit, sort_keys, sort_dirs)
-        rest_utils.validate_fields(fields, Workflow.get_fields())
-
-        marker_obj = None
-
-        if marker:
-            marker_obj = db_api.get_workflow_definition_by_id(marker)
-
-        db_workflows = db_api.get_workflow_definitions(
-            limit=limit,
-            marker=marker_obj,
-            sort_keys=sort_keys,
-            sort_dirs=sort_dirs,
-            fields=fields
+        filters = rest_utils.filters_to_dict(
+            created_at=created_at,
+            name=name,
+            scope=scope,
+            tags=tags,
+            updated_at=updated_at,
+            input=input,
+            definition=definition,
+            project_id=project_id
         )
 
-        workflows_list = []
+        LOG.info("Fetch workflows. marker=%s, limit=%s, sort_keys=%s, "
+                 "sort_dirs=%s, fields=%s, filters=%s", marker, limit,
+                 sort_keys, sort_dirs, fields, filters)
 
-        for data in db_workflows:
-            workflow_dict = (dict(zip(fields, data)) if fields else
-                             data.to_dict())
-            workflows_list.append(Workflow.from_dict(workflow_dict))
-
-        return Workflows.convert_with_links(
-            workflows_list,
-            limit,
-            pecan.request.host_url,
-            sort_keys=','.join(sort_keys),
-            sort_dirs=','.join(sort_dirs),
-            fields=','.join(fields) if fields else ''
+        return rest_utils.get_all(
+            Workflows,
+            Workflow,
+            db_api.get_workflow_definitions,
+            db_api.get_workflow_definition_by_id,
+            resource_function=None,
+            marker=marker,
+            limit=limit,
+            sort_keys=sort_keys,
+            sort_dirs=sort_dirs,
+            fields=fields,
+            **filters
         )

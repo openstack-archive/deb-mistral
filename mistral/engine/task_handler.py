@@ -1,6 +1,7 @@
 # Copyright 2015 - Mirantis, Inc.
 # Copyright 2015 - StackStorm, Inc.
 # Copyright 2016 - Nokia Networks.
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -15,6 +16,7 @@
 #    limitations under the License.
 
 from oslo_log import log as logging
+from osprofiler import profiler
 import traceback as tb
 
 from mistral.engine import tasks
@@ -30,6 +32,7 @@ from mistral.workflow import states
 LOG = logging.getLogger(__name__)
 
 
+@profiler.trace('task-handler-run-task')
 def run_task(wf_cmd):
     """Runs workflow task.
 
@@ -58,9 +61,10 @@ def run_task(wf_cmd):
         return
 
     if task.is_completed():
-        wf_handler.check_workflow_completion(wf_cmd.wf_ex)
+        wf_handler.on_task_complete(task.task_ex)
 
 
+@profiler.trace('task-handler-on-task-complete')
 def on_action_complete(action_ex):
     """Handles action completion event.
 
@@ -102,7 +106,7 @@ def on_action_complete(action_ex):
         return
 
     if task.is_completed():
-        wf_handler.check_workflow_completion(wf_ex)
+        wf_handler.on_task_complete(task_ex)
 
 
 def fail_task(task_ex, msg):
@@ -116,21 +120,51 @@ def fail_task(task_ex, msg):
 def continue_task(task_ex):
     task = _build_task_from_execution(task_ex)
 
-    # TODO(rakhmerov): Error handling.
-    task.run()
+    try:
+        task.run()
+    except exc.MistralException as e:
+        wf_ex = task_ex.workflow_execution
+
+        msg = (
+            "Failed to run task [wf=%s, task=%s]: %s\n%s" %
+            (wf_ex, task_ex.name, e, tb.format_exc())
+        )
+
+        LOG.error(msg)
+
+        task.set_state(states.ERROR, msg)
+
+        wf_handler.fail_workflow(wf_ex, msg)
+
+        return
 
     if task.is_completed():
-        wf_handler.check_workflow_completion(task_ex.workflow_execution)
+        wf_handler.on_task_complete(task_ex)
 
 
 def complete_task(task_ex, state, state_info):
     task = _build_task_from_execution(task_ex)
 
-    # TODO(rakhmerov): Error handling.
-    task.complete(state, state_info)
+    try:
+        task.complete(state, state_info)
+    except exc.MistralException as e:
+        wf_ex = task_ex.workflow_execution
+
+        msg = (
+            "Failed to complete task [wf=%s, task=%s]: %s\n%s" %
+            (wf_ex, task_ex.name, e, tb.format_exc())
+        )
+
+        LOG.error(msg)
+
+        task.set_state(states.ERROR, msg)
+
+        wf_handler.fail_workflow(wf_ex, msg)
+
+        return
 
     if task.is_completed():
-        wf_handler.check_workflow_completion(task_ex.workflow_execution)
+        wf_handler.on_task_complete(task_ex)
 
 
 def _build_task_from_execution(task_ex, task_spec=None):

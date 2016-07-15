@@ -15,16 +15,17 @@
 #    limitations under the License.
 
 from oslo_log import log as logging
-import pecan
 from pecan import rest
 from wsme import types as wtypes
 import wsmeext.pecan as wsme_pecan
 
+from mistral.api import access_control as acl
 from mistral.api.controllers import resource
 from mistral.api.controllers.v2 import task
 from mistral.api.controllers.v2 import types
+from mistral import context
 from mistral.db.v2 import api as db_api
-from mistral.engine import rpc
+from mistral.engine.rpc import rpc
 from mistral import exceptions as exc
 from mistral.services import workflows as wf_service
 from mistral.utils import rest_utils
@@ -32,6 +33,8 @@ from mistral.workflow import states
 
 
 LOG = logging.getLogger(__name__)
+STATE_TYPES = wtypes.Enum(str, states.IDLE, states.RUNNING, states.SUCCESS,
+                          states.ERROR, states.PAUSED)
 
 # TODO(rakhmerov): Make sure to make all needed renaming on public API.
 
@@ -116,6 +119,7 @@ class ExecutionsController(rest.RestController):
     @wsme_pecan.wsexpose(Execution, wtypes.text)
     def get(self, id):
         """Return the specified Execution."""
+        acl.enforce("executions:get", context.ctx())
         LOG.info("Fetch execution [id=%s]" % id)
 
         return Execution.from_dict(db_api.get_workflow_execution(id).to_dict())
@@ -128,6 +132,7 @@ class ExecutionsController(rest.RestController):
         :param id: execution ID.
         :param wf_ex: Execution object.
         """
+        acl.enforce('executions:update', context.ctx())
         LOG.info('Update execution [id=%s, execution=%s]' % (id, wf_ex))
 
         db_api.ensure_workflow_execution_exists(id)
@@ -219,6 +224,7 @@ class ExecutionsController(rest.RestController):
 
         :param wf_ex: Execution object with input content.
         """
+        acl.enforce('executions:create', context.ctx())
         LOG.info('Create execution [execution=%s]' % wf_ex)
 
         engine = rpc.get_engine_client()
@@ -244,14 +250,21 @@ class ExecutionsController(rest.RestController):
     @wsme_pecan.wsexpose(None, wtypes.text, status_code=204)
     def delete(self, id):
         """Delete the specified Execution."""
+        acl.enforce('executions:delete', context.ctx())
         LOG.info('Delete execution [id=%s]' % id)
 
         return db_api.delete_workflow_execution(id)
 
     @wsme_pecan.wsexpose(Executions, types.uuid, int, types.uniquelist,
-                         types.list)
+                         types.list, types.uniquelist, wtypes.text,
+                         types.uuid, wtypes.text, types.jsontype, types.uuid,
+                         STATE_TYPES, wtypes.text, types.jsontype,
+                         types.jsontype, wtypes.text, wtypes.text)
     def get_all(self, marker=None, limit=None, sort_keys='created_at',
-                sort_dirs='asc'):
+                sort_dirs='asc', fields='', workflow_name=None,
+                workflow_id=None, description=None, params=None,
+                task_execution_id=None, state=None, state_info=None,
+                input=None, output=None, created_at=None, updated_at=None):
         """Return all Executions.
 
         :param marker: Optional. Pagination marker for large data sets.
@@ -264,35 +277,61 @@ class ExecutionsController(rest.RestController):
                           sort_keys, "asc" or "desc" can be chosen.
                           Default: desc. The length of sort_dirs can be equal
                           or less than that of sort_keys.
+        :param fields: Optional. A specified list of fields of the resource to
+                       be returned. 'id' will be included automatically in
+                       fields if it's provided, since it will be used when
+                       constructing 'next' link.
+        :param workflow_name: Optional. Keep only resources with a specific
+                              workflow name.
+        :param workflow_id: Optional. Keep only resources with a specific
+                            workflow ID.
+        :param description: Optional. Keep only resources with a specific
+                            description.
+        :param params: Optional. Keep only resources with specific parameters.
+        :param task_execution_id: Optional. Keep only resources with a
+                                  specific task execution ID.
+        :param state: Optional. Keep only resources with a specific state.
+        :param state_info: Optional. Keep only resources with specific
+                           state information.
+        :param input: Optional. Keep only resources with a specific input.
+        :param output: Optional. Keep only resources with a specific output.
+        :param created_at: Optional. Keep only resources created at a specific
+                           time and date.
+        :param updated_at: Optional. Keep only resources with specific latest
+                           update time and date.
         """
+        acl.enforce('executions:list', context.ctx())
+
+        filters = rest_utils.filters_to_dict(
+            created_at=created_at,
+            workflow_name=workflow_name,
+            workflow_id=workflow_id,
+            params=params,
+            task_execution_id=task_execution_id,
+            state=state,
+            state_info=state_info,
+            input=input,
+            output=output,
+            updated_at=updated_at,
+            description=description
+        )
+
         LOG.info(
             "Fetch executions. marker=%s, limit=%s, sort_keys=%s, "
-            "sort_dirs=%s", marker, limit, sort_keys, sort_dirs
+            "sort_dirs=%s, filters=%s", marker, limit, sort_keys, sort_dirs,
+            filters
         )
 
-        rest_utils.validate_query_params(limit, sort_keys, sort_dirs)
-
-        marker_obj = None
-
-        if marker:
-            marker_obj = db_api.get_workflow_execution(marker)
-
-        db_workflow_exs = db_api.get_workflow_executions(
+        return rest_utils.get_all(
+            Executions,
+            Execution,
+            db_api.get_workflow_executions,
+            db_api.get_workflow_execution,
+            resource_function=None,
+            marker=marker,
             limit=limit,
-            marker=marker_obj,
             sort_keys=sort_keys,
-            sort_dirs=sort_dirs
-        )
-
-        wf_executions = [
-            Execution.from_dict(db_model.to_dict())
-            for db_model in db_workflow_exs
-        ]
-
-        return Executions.convert_with_links(
-            wf_executions,
-            limit,
-            pecan.request.host_url,
-            sort_keys=','.join(sort_keys),
-            sort_dirs=','.join(sort_dirs)
+            sort_dirs=sort_dirs,
+            fields=fields,
+            **filters
         )

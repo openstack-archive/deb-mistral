@@ -17,8 +17,10 @@ from pecan import rest
 from wsme import types as wtypes
 import wsmeext.pecan as wsme_pecan
 
+from mistral.api import access_control as acl
 from mistral.api.controllers import resource
 from mistral.api.controllers.v2 import types
+from mistral import context
 from mistral.db.v2 import api as db_api
 from mistral.services import triggers
 from mistral.utils import rest_utils
@@ -62,10 +64,15 @@ class CronTrigger(resource.Resource):
                    updated_at='1970-01-01T00:00:00.000000')
 
 
-class CronTriggers(resource.Resource):
+class CronTriggers(resource.ResourceList):
     """A collection of cron triggers."""
 
     cron_triggers = [CronTrigger]
+
+    def __init__(self, **kwargs):
+        self._type = 'cron_triggers'
+
+        super(CronTriggers, self).__init__(**kwargs)
 
     @classmethod
     def sample(cls):
@@ -78,6 +85,7 @@ class CronTriggersController(rest.RestController):
     def get(self, name):
         """Returns the named cron_trigger."""
 
+        acl.enforce('cron_triggers:get', context.ctx())
         LOG.info('Fetch cron trigger [name=%s]' % name)
 
         db_model = db_api.get_cron_trigger(name)
@@ -89,6 +97,7 @@ class CronTriggersController(rest.RestController):
     def post(self, cron_trigger):
         """Creates a new cron trigger."""
 
+        acl.enforce('cron_triggers:create', context.ctx())
         LOG.info('Create cron trigger: %s' % cron_trigger)
 
         values = cron_trigger.to_dict()
@@ -110,19 +119,92 @@ class CronTriggersController(rest.RestController):
     @wsme_pecan.wsexpose(None, wtypes.text, status_code=204)
     def delete(self, name):
         """Delete cron trigger."""
+        acl.enforce('cron_triggers:delete', context.ctx())
         LOG.info("Delete cron trigger [name=%s]" % name)
 
         db_api.delete_cron_trigger(name)
 
-    @wsme_pecan.wsexpose(CronTriggers)
-    def get_all(self):
-        """Return all cron triggers."""
+    @wsme_pecan.wsexpose(CronTriggers, types.uuid, int, types.uniquelist,
+                         types.list, types.uniquelist, wtypes.text,
+                         wtypes.text, types.uuid, types.jsontype,
+                         types.jsontype, SCOPE_TYPES, wtypes.text,
+                         wtypes.IntegerType(minimum=1), wtypes.text,
+                         wtypes.text, wtypes.text, wtypes.text)
+    def get_all(self, marker=None, limit=None, sort_keys='created_at',
+                sort_dirs='asc', fields='', name=None, workflow_name=None,
+                workflow_id=None, workflow_input=None, workflow_params=None,
+                scope=None, pattern=None, remaining_executions=None,
+                first_execution_time=None, next_execution_time=None,
+                created_at=None, updated_at=None):
+        """Return all cron triggers.
 
-        LOG.info("Fetch cron triggers.")
+        :param marker: Optional. Pagination marker for large data sets.
+        :param limit: Optional. Maximum number of resources to return in a
+                      single result. Default value is None for backward
+                      compatibility.
+        :param sort_keys: Optional. Columns to sort results by.
+                          Default: created_at, which is backward compatible.
+        :param sort_dirs: Optional. Directions to sort corresponding to
+                          sort_keys, "asc" or "desc" can be chosen.
+                          Default: desc. The length of sort_dirs can be equal
+                          or less than that of sort_keys.
+        :param fields: Optional. A specified list of fields of the resource to
+                       be returned. 'id' will be included automatically in
+                       fields if it's provided, since it will be used when
+                       constructing 'next' link.
+        :param name: Optional. Keep only resources with a specific name.
+        :param workflow_name: Optional. Keep only resources with a specific
+                              workflow name.
+        :param workflow_id: Optional. Keep only resources with a specific
+                            workflow ID.
+        :param workflow_input: Optional. Keep only resources with a specific
+                               workflow input.
+        :param workflow_params: Optional. Keep only resources with specific
+                                workflow parameters.
+        :param scope: Optional. Keep only resources with a specific scope.
+        :param pattern: Optional. Keep only resources with a specific pattern.
+        :param remaining_executions: Optional. Keep only resources with a
+                                     specific number of remaining executions.
+        :param first_execution_time: Optional. Keep only resources with a
+                                     specific time and date of first execution.
+        :param next_execution_time: Optional. Keep only resources with a
+                                    specific time and date of next execution.
+        :param created_at: Optional. Keep only resources created at a specific
+                           time and date.
+        :param updated_at: Optional. Keep only resources with specific latest
+                           update time and date.
+        """
+        acl.enforce('cron_triggers:list', context.ctx())
 
-        _list = [
-            CronTrigger.from_dict(db_model.to_dict())
-            for db_model in db_api.get_cron_triggers()
-        ]
+        filters = rest_utils.filters_to_dict(
+            created_at=created_at,
+            name=name,
+            updated_at=updated_at,
+            workflow_name=workflow_name,
+            workflow_id=workflow_id,
+            workflow_input=workflow_input,
+            workflow_params=workflow_params,
+            scope=scope,
+            pattern=pattern,
+            remaining_executions=remaining_executions,
+            first_execution_time=first_execution_time,
+            next_execution_time=next_execution_time
+        )
 
-        return CronTriggers(cron_triggers=_list)
+        LOG.info("Fetch cron triggers. marker=%s, limit=%s, sort_keys=%s, "
+                 "sort_dirs=%s, filters=%s", marker, limit, sort_keys,
+                 sort_dirs, filters)
+
+        return rest_utils.get_all(
+            CronTriggers,
+            CronTrigger,
+            db_api.get_cron_triggers,
+            db_api.get_cron_trigger,
+            resource_function=None,
+            marker=marker,
+            limit=limit,
+            sort_keys=sort_keys,
+            sort_dirs=sort_dirs,
+            fields=fields,
+            **filters
+        )

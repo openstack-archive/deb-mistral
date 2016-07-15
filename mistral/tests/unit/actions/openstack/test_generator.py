@@ -32,10 +32,13 @@ MODULE_MAPPING = {
     'zaqar': ['zaqar.queue_messages', actions.ZaqarAction],
     'barbican': ['barbican.orders_list', actions.BarbicanAction],
     'mistral': ['mistral.workflows_get', actions.MistralAction],
-    'designate': ['designate.domain_list', actions.DesignateAction],
+    'designate': ['designate.domains_list', actions.DesignateAction],
+    'magnum': ['magnum.bays_list', actions.MagnumAction],
+    'murano': ['murano.deployments_list', actions.MuranoAction],
+    'tacker': ['tacker.list_vims', actions.TackerAction]
 }
 
-EXTRA_MODULES = ['neutron', 'swift', 'zaqar']
+EXTRA_MODULES = ['neutron', 'swift', 'zaqar', 'tacker']
 
 
 class GeneratorTest(base.BaseTest):

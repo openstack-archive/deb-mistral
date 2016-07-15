@@ -1,4 +1,5 @@
 # Copyright 2016 - Nokia Networks.
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -16,6 +17,7 @@ import abc
 import copy
 import operator
 from oslo_log import log as logging
+from osprofiler import profiler
 import six
 
 from mistral.db.v2 import api as db_api
@@ -67,6 +69,7 @@ class Task(object):
         """Runs task."""
         raise NotImplementedError
 
+    @profiler.trace('task-defer')
     def defer(self):
         """Defers task.
 
@@ -75,10 +78,12 @@ class Task(object):
         """
 
         if not self.task_ex:
-            self.task_ex = wf_utils.find_task_executions_by_spec(
+            t_execs = wf_utils.find_task_executions_by_spec(
                 self.wf_ex,
                 self.task_spec
             )
+
+            self.task_ex = t_execs[0] if t_execs else None
 
         if not self.task_ex:
             self._create_task_execution()
@@ -90,6 +95,7 @@ class Task(object):
     def reset(self):
         self.reset_flag = True
 
+    @profiler.trace('task-set-state')
     def set_state(self, state, state_info, processed=None):
         """Sets task state without executing post completion logic.
 
@@ -97,6 +103,8 @@ class Task(object):
         :param state_info: New state information (i.e. error message).
         :param processed: New "processed" flag value.
         """
+
+        assert self.task_ex
 
         wf_trace.info(
             self.task_ex.workflow_execution,
@@ -110,6 +118,7 @@ class Task(object):
         if processed is not None:
             self.task_ex.processed = processed
 
+    @profiler.trace('task-complete')
     def complete(self, state, state_info=None):
         """Complete task and set specified state.
 
@@ -120,6 +129,8 @@ class Task(object):
         :param state: New task state.
         :param state_info: New state information (i.e. error message).
         """
+
+        assert self.task_ex
 
         # Ignore if task already completed.
         if states.is_completed(self.task_ex.state):
@@ -204,6 +215,7 @@ class RegularTask(Task):
     Takes care of processing regular tasks with one action.
     """
 
+    @profiler.trace('task-on-action-complete')
     def on_action_complete(self, action_ex):
         state = action_ex.state
         # TODO(rakhmerov): Here we can define more informative messages
@@ -217,6 +229,7 @@ class RegularTask(Task):
     def is_completed(self):
         return self.task_ex and states.is_completed(self.task_ex.state)
 
+    @profiler.trace('task-run')
     def run(self):
         if not self.task_ex:
             self._run_new()
@@ -348,7 +361,10 @@ class WithItemsTask(RegularTask):
     Takes care of processing "with-items" tasks.
     """
 
+    @profiler.trace('task-on-action-complete')
     def on_action_complete(self, action_ex):
+        assert self.task_ex
+
         state = action_ex.state
         # TODO(rakhmerov): Here we can define more informative messages
         # cases when action is successful and when it's not. For example,

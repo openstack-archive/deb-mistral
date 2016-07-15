@@ -17,18 +17,25 @@
 import copy
 import datetime
 import json
+
 import mock
+from oslo_config import cfg
+import oslo_messaging
 import uuid
 from webtest import app as webtest_app
 
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import api as sql_db_api
 from mistral.db.v2.sqlalchemy import models
-from mistral.engine import rpc
+from mistral.engine.rpc import rpc
 from mistral import exceptions as exc
 from mistral.tests.unit.api import base
 from mistral import utils
 from mistral.workflow import states
+
+# This line is needed for correct initialization of messaging config.
+oslo_messaging.get_transport(cfg.CONF)
+
 
 WF_EX = models.WorkflowExecution(
     id='123e4567-e89b-12d3-a456-426655440000',
@@ -111,10 +118,11 @@ MOCK_WF_EXECUTIONS = mock.MagicMock(return_value=[WF_EX])
 MOCK_UPDATED_WF_EX = mock.MagicMock(return_value=UPDATED_WF_EX)
 MOCK_DELETE = mock.MagicMock(return_value=None)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
-MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundException())
+MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundError())
 MOCK_ACTION_EXC = mock.MagicMock(side_effect=exc.ActionException())
 
 
+@mock.patch.object(rpc, '_IMPL_CLIENT', mock.Mock())
 class TestExecutionsController(base.APITest):
     @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
     def test_get(self):

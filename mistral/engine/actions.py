@@ -1,4 +1,5 @@
 # Copyright 2016 - Nokia Networks.
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -15,15 +16,16 @@
 import abc
 from oslo_config import cfg
 from oslo_log import log as logging
+from osprofiler import profiler
 import six
 
 from mistral.db.v2 import api as db_api
-from mistral.engine import rpc
+from mistral.engine.rpc import rpc
 from mistral.engine import utils as e_utils
+from mistral.engine import workflow_handler as wf_handler
 from mistral import exceptions as exc
 from mistral import expressions as expr
 from mistral.services import action_manager as a_m
-from mistral.services import executions as wf_ex_service
 from mistral.services import scheduler
 from mistral.services import security
 from mistral import utils
@@ -36,7 +38,6 @@ from mistral.workflow import utils as wf_utils
 LOG = logging.getLogger(__name__)
 
 _RUN_EXISTING_ACTION_PATH = 'mistral.engine.actions._run_existing_action'
-_RESUME_WORKFLOW_PATH = 'mistral.engine.actions._resume_workflow'
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -61,6 +62,8 @@ class Action(object):
         raise NotImplementedError
 
     def fail(self, msg):
+        assert self.action_ex
+
         # When we set an ERROR state we should safely set output value getting
         # w/o exceptions due to field size limitations.
         msg = utils.cut_by_kb(
@@ -119,22 +122,9 @@ class Action(object):
         """
         return True
 
-    def _create_action_execution(self, input_dict, runtime_ctx, desc=''):
-        # Assign the action execution ID here to minimize database calls.
-        # Otherwise, the input property of the action execution DB object needs
-        # to be updated with the action execution ID after the action execution
-        # DB object is created.
-        action_ex_id = utils.generate_unicode_uuid()
-
-        # TODO(rakhmerov): Bad place, we probably need to push action context
-        # to all actions. It's related to
-        # https://blueprints.launchpad.net/mistral/+spec/mistral-custom-actions-api
-        if a_m.has_action_context(
-                self.action_def.action_class,
-                self.action_def.attributes or {}) and self.task_ex:
-            input_dict.update(
-                a_m.get_action_context(self.task_ex, action_ex_id)
-            )
+    def _create_action_execution(self, input_dict, runtime_ctx,
+                                 desc='', action_ex_id=None):
+        action_ex_id = action_ex_id or utils.generate_unicode_uuid()
 
         values = {
             'id': action_ex_id,
@@ -189,7 +179,10 @@ class Action(object):
 class PythonAction(Action):
     """Regular Python action."""
 
+    @profiler.trace('action-complete')
     def complete(self, result):
+        assert self.action_ex
+
         if states.is_completed(self.action_ex.state):
             return
 
@@ -202,11 +195,23 @@ class PythonAction(Action):
 
         self._log_result(prev_state, result)
 
+    @profiler.trace('action-schedule')
     def schedule(self, input_dict, target, index=0, desc=''):
+        assert not self.action_ex
+
+        # Assign the action execution ID here to minimize database calls.
+        # Otherwise, the input property of the action execution DB object needs
+        # to be updated with the action execution ID after the action execution
+        # DB object is created.
+        action_ex_id = utils.generate_unicode_uuid()
+
+        self._insert_action_context(action_ex_id, input_dict)
+
         self._create_action_execution(
             self._prepare_input(input_dict),
             self._prepare_runtime_context(index),
-            desc=desc
+            desc=desc,
+            action_ex_id=action_ex_id
         )
 
         scheduler.schedule_call(
@@ -217,12 +222,28 @@ class PythonAction(Action):
             target=target
         )
 
+    @profiler.trace('action-run')
     def run(self, input_dict, target, index=0, desc='', save=True):
+        assert not self.action_ex
+
         input_dict = self._prepare_input(input_dict)
         runtime_ctx = self._prepare_runtime_context(index)
 
+        # Assign the action execution ID here to minimize database calls.
+        # Otherwise, the input property of the action execution DB object needs
+        # to be updated with the action execution ID after the action execution
+        # DB object is created.
+        action_ex_id = utils.generate_unicode_uuid()
+
+        self._insert_action_context(action_ex_id, input_dict, save=save)
+
         if save:
-            self._create_action_execution(input_dict, runtime_ctx, desc=desc)
+            self._create_action_execution(
+                input_dict,
+                runtime_ctx,
+                desc=desc,
+                action_ex_id=action_ex_id
+            )
 
         result = rpc.get_executor_client().run_action(
             self.action_ex.id if self.action_ex else None,
@@ -246,7 +267,6 @@ class PythonAction(Action):
         if self.action_def.action_class:
             self._inject_action_ctx_for_validating(input_dict)
 
-        # TODO(rakhmerov): I'm not sure what this is for.
         # NOTE(xylan): Don't validate action input if action initialization
         # method contains ** argument.
         if '**' not in self.action_def.input:
@@ -274,6 +294,24 @@ class PythonAction(Action):
         """
         return {'index': index}
 
+    def _insert_action_context(self, action_ex_id, input_dict, save=True):
+        """Template method to prepare action context.
+
+        It inserts the action context in the input if required
+        runtime context.
+        """
+        # we need to push action context to all actions. It's related to
+        # https://blueprints.launchpad.net/mistral/+spec/mistral-custom-actions-api
+        has_action_context = a_m.has_action_context(
+            self.action_def.action_class,
+            self.action_def.attributes or {}
+        )
+
+        if has_action_context:
+            input_dict.update(
+                a_m.get_action_context(self.task_ex, action_ex_id, save=save)
+            )
+
 
 class AdHocAction(PythonAction):
     """Ad-hoc action."""
@@ -283,6 +321,9 @@ class AdHocAction(PythonAction):
 
         base_action_def = db_api.get_action_definition(
             self.action_spec.get_base()
+        )
+        base_action_def = self._gather_base_actions(
+            action_def, base_action_def
         )
 
         super(AdHocAction, self).__init__(
@@ -305,15 +346,18 @@ class AdHocAction(PythonAction):
         )
 
     def _prepare_input(self, input_dict):
-        base_input_expr = self.action_spec.get_base_input()
+        base_input_dict = input_dict
 
-        if base_input_expr:
-            base_input_dict = expr.evaluate_recursively(
-                base_input_expr,
-                input_dict
-            )
-        else:
-            base_input_dict = {}
+        for action_def in self.adhoc_action_defs:
+            action_spec = spec_parser.get_action_spec(action_def.spec)
+            base_input_expr = action_spec.get_base_input()
+            if base_input_expr:
+                base_input_dict = expr.evaluate_recursively(
+                    base_input_expr,
+                    base_input_dict
+                )
+            else:
+                base_input_dict = {}
 
         return super(AdHocAction, self)._prepare_input(base_input_dict)
 
@@ -344,15 +388,53 @@ class AdHocAction(PythonAction):
             {'adhoc_action_name': self.adhoc_action_def.name}
         )
 
+    def _gather_base_actions(self, action_def, base_action_def):
+        """Find all base ad-hoc actions and store them
+
+        An ad-hoc action may be based on another ad-hoc action (and this
+        recursively). Using twice the same base action is not allowed to
+        avoid infinite loops. It stores the list of ad-hoc actions.
+        :param action_def: Action definition
+        :type action_def: ActionDefinition
+        :param base_action_def: Original base action definition
+        :type base_action_def: ActionDefinition
+        :return; The definition of the base system action
+        :rtype; ActionDefinition
+        """
+        self.adhoc_action_defs = [action_def]
+        original_base_name = self.action_spec.get_name()
+        action_names = set([original_base_name])
+
+        base = base_action_def
+        while not base.is_system and base.name not in action_names:
+            action_names.add(base.name)
+            self.adhoc_action_defs.append(base)
+
+            base_name = base.spec['base']
+            base = db_api.get_action_definition(base_name)
+
+        # if the action is repeated
+        if base.name in action_names:
+            raise ValueError(
+                'An ad-hoc action cannot use twice the same action, %s is '
+                'used at least twice' % base.name
+            )
+
+        return base
+
 
 class WorkflowAction(Action):
     """Workflow action."""
 
+    @profiler.trace('action-complete')
     def complete(self, result):
         # No-op because in case of workflow result is already processed.
         pass
 
+    @profiler.trace('action-schedule')
     def schedule(self, input_dict, target, index=0, desc=''):
+        assert not self.action_ex
+
         parent_wf_ex = self.task_ex.workflow_execution
         parent_wf_spec = spec_parser.get_workflow_spec(parent_wf_ex.spec)
 
@@ -381,24 +463,14 @@ class WorkflowAction(Action):
                 wf_params[k] = v
                 del input_dict[k]
 
-        wf_ex, _ = wf_ex_service.create_workflow_execution(
-            wf_def.name,
+        wf_handler.start_workflow(
+            wf_def.id,
             input_dict,
             "sub-workflow execution",
-            wf_params,
-            wf_spec
+            wf_params
         )
 
-        scheduler.schedule_call(
-            None,
-            _RESUME_WORKFLOW_PATH,
-            0,
-            wf_ex_id=wf_ex.id,
-            env=None
-        )
-
-        # TODO(rakhmerov): Add info logging.
-
+    @profiler.trace('action-run')
     def run(self, input_dict, target, index=0, desc='', save=True):
         raise NotImplemented('Does not apply to this WorkflowAction.')
 
@@ -409,10 +481,6 @@ class WorkflowAction(Action):
     def validate_input(self, input_dict):
         # TODO(rakhmerov): Implement.
         pass
-
-
-def _resume_workflow(wf_ex_id, env):
-    rpc.get_engine_client().resume_workflow(wf_ex_id, env=env)
 
 
 def _run_existing_action(action_ex_id, target):

@@ -14,8 +14,6 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-import traceback
-
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service import periodic_task
@@ -23,7 +21,7 @@ from oslo_service import threadgroup
 
 from mistral import context as auth_ctx
 from mistral.db.v2 import api as db_api_v2
-from mistral.engine import rpc
+from mistral.engine.rpc import rpc
 from mistral import exceptions as exc
 from mistral.services import security
 from mistral.services import triggers
@@ -68,13 +66,9 @@ class MistralPeriodicTasks(periodic_task.PeriodicTasks):
                                     "by cron trigger.",
                         **t.workflow_params
                     )
-            except Exception as e:
+            except Exception:
                 # Log and continue to next cron trigger.
-                msg = (
-                    "Failed to process cron trigger %s\n%s"
-                    % (str(t), traceback.format_exc(e))
-                )
-                LOG.error(msg)
+                LOG.exception("Failed to process cron trigger %s" % str(t))
             finally:
                 auth_ctx.set_ctx(None)
 
@@ -108,7 +102,7 @@ def advance_cron_trigger(t):
                     'next_execution_time': t.next_execution_time
                 }
             )
-    except exc.DBEntityNotFoundException as e:
+    except exc.DBEntityNotFoundError as e:
         # Cron trigger was probably already deleted by a different process.
         LOG.debug(
             "Cron trigger named '%s' does not exist anymore: %s",

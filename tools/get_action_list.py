@@ -31,8 +31,12 @@ from ironicclient.common import base as ironic_base
 from ironicclient.v1 import client as ironicclient
 from keystoneclient import base as keystone_base
 from keystoneclient.v3 import client as keystoneclient
+from magnumclient.common import base as magnum_base
+from magnumclient.v1 import client as magnumclient
 from mistralclient.api import base as mistral_base
 from mistralclient.api.v2 import client as mistralclient
+from muranoclient.common import base as murano_base
+from muranoclient.v1 import client as muranoclient
 from novaclient import base as nova_base
 from novaclient import client as novaclient
 from troveclient import base as trove_base
@@ -46,6 +50,8 @@ from troveclient.v1 import client as troveclient
 # TODO(dprince): Swiftclient doesn't currently support discovery
 # like we do in this class.
 # TODO(therve): Zaqarclient doesn't currently support discovery
+# like we do in this class.
+# TODO(sa709c): Tackerclient doesn't currently support discovery
 # like we do in this class.
 
 """It is simple CLI tool which allows to see and update mapping.json file
@@ -78,6 +84,8 @@ BASE_MISTRAL_MANAGER = mistral_base.ResourceManager
 BASE_TROVE_MANAGER = trove_base.Manager
 BASE_IRONIC_MANAGER = ironic_base.Manager
 BASE_BARBICAN_MANAGER = barbican_base.BaseEntityManager
+BASE_MAGNUM_MANAGER = magnum_base.Manager
+BASE_MURANO_MANAGER = murano_base.Manager
 
 
 def get_parser():
@@ -119,7 +127,9 @@ def get_parser():
 
 
 GLANCE_NAMESPACE_LIST = [
-    'image_members', 'image_tags', 'images', 'schemas', 'tasks'
+    'image_members', 'image_tags', 'images', 'schemas', 'tasks',
+    'metadefs_resource_type', 'metadefs_property', 'metadefs_object',
+    'metadefs_tag', 'metadefs_namespace', 'versions'
 ]
 
 CEILOMETER_NAMESPACE_LIST = [
@@ -129,8 +139,8 @@ CEILOMETER_NAMESPACE_LIST = [
 ]
 
 DESIGNATE_NAMESPACE_LIST = [
-    'diagnostics', 'domain', 'quota', 'record', 'report_count',
-    'report_tenant', 'server', 'sync', 'touch'
+    'diagnostics', 'domains', 'quotas', 'records', 'reports', 'servers',
+    'sync', 'touch'
 ]
 
 
@@ -178,7 +188,15 @@ def get_barbican_client(**kwargs):
 
 
 def get_designate_client(**kwargs):
-    return designateclient.Client(1)
+    return designateclient.Client('1')
+
+
+def get_magnum_client(**kwargs):
+    return magnumclient.Client()
+
+
+def get_murano_client(**kwargs):
+    return muranoclient.Client('')
 
 
 CLIENTS = {
@@ -192,7 +210,9 @@ CLIENTS = {
     'ironic': get_ironic_client,
     'barbican': get_barbican_client,
     'mistral': get_mistral_client,
-    'designate': get_designate_client
+    'designate': get_designate_client,
+    'magnum': get_magnum_client,
+    'murano': get_murano_client,
     # 'neutron': get_nova_client
     # 'baremetal_introspection': ...
     # 'swift': ...
@@ -210,6 +230,8 @@ BASE_MANAGERS = {
     'barbican': BASE_BARBICAN_MANAGER,
     'mistral': BASE_MISTRAL_MANAGER,
     'designate': None,
+    'magnum': BASE_MAGNUM_MANAGER,
+    'murano': BASE_MURANO_MANAGER,
     # 'neutron': BASE_NOVA_MANAGER
     # 'baremetal_introspection': ...
     # 'swift': ...
@@ -224,7 +246,7 @@ ALLOWED_ATTRS = ['service_catalog', 'catalog']
 FORBIDDEN_METHODS = [
     'add_hook', 'alternate_service_type', 'completion_cache', 'run_hooks',
     'write_to_completion_cache', 'model', 'build_key_only_query', 'build_url',
-    'head', 'put'
+    'head', 'put', 'unvalidated_model'
 ]
 
 

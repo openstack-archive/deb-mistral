@@ -22,10 +22,11 @@ from mistral import context as ctx
 from mistral.db.v2 import api as db_api
 from mistral.engine import default_engine as def_eng
 from mistral.engine import default_executor as def_exec
-from mistral.engine import rpc
+from mistral.engine.rpc import rpc
 from mistral.services import scheduler
 from mistral.tests.unit import base
 from mistral.workflow import states
+
 
 LOG = logging.getLogger(__name__)
 
@@ -98,11 +99,10 @@ class EngineTestCase(base.DbTestCase):
 
         # Drop all RPC objects (transport, clients).
         rpc.cleanup()
-
         transport = rpc.get_transport()
 
-        self.engine_client = rpc.EngineClient(transport)
-        self.executor_client = rpc.ExecutorClient(transport)
+        self.engine_client = rpc.get_engine_client()
+        self.executor_client = rpc.get_executor_client()
 
         self.engine = def_eng.DefaultEngine(self.engine_client)
         self.executor = def_exec.DefaultExecutor(self.engine_client)
@@ -134,39 +134,42 @@ class EngineTestCase(base.DbTestCase):
 
         print("\nPrinting workflow executions...")
 
-        wf_execs = db_api.get_workflow_executions()
+        with db_api.transaction():
+            wf_execs = db_api.get_workflow_executions()
 
-        for w in wf_execs:
-            print(
-                "\n%s [state=%s, state_info=%s, output=%s]" %
-                (w.name, w.state, w.state_info, w.output)
-            )
-
-            for t in w.task_executions:
+            for w in wf_execs:
                 print(
-                    "\t%s [id=%s, state=%s, state_info=%s, processed=%s,"
-                    " published=%s]" %
-                    (t.name,
-                     t.id,
-                     t.state,
-                     t.state_info,
-                     t.processed,
-                     t.published)
+                    "\n%s [state=%s, state_info=%s, output=%s]" %
+                    (w.name, w.state, w.state_info, w.output)
                 )
 
-                a_execs = db_api.get_action_executions(task_execution_id=t.id)
-
-                for a in a_execs:
+                for t in w.task_executions:
                     print(
-                        "\t\t%s [id=%s, state=%s, state_info=%s, accepted=%s,"
-                        " output=%s]" %
-                        (a.name,
-                         a.id,
-                         a.state,
-                         a.state_info,
-                         a.accepted,
-                         a.output)
+                        "\t%s [id=%s, state=%s, state_info=%s, processed=%s,"
+                        " published=%s]" %
+                        (t.name,
+                         t.id,
+                         t.state,
+                         t.state_info,
+                         t.processed,
+                         t.published)
                     )
+
+                    a_execs = db_api.get_action_executions(
+                        task_execution_id=t.id
+                    )
+
+                    for a in a_execs:
+                        print(
+                            "\t\t%s [id=%s, state=%s, state_info=%s,"
+                            " accepted=%s, output=%s]" %
+                            (a.name,
+                             a.id,
+                             a.state,
+                             a.state_info,
+                             a.accepted,
+                             a.output)
+                        )
 
         print("\nPrinting standalone action executions...")
 

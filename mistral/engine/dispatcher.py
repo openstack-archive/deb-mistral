@@ -1,4 +1,5 @@
 # Copyright 2016 - Nokia Networks
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -12,12 +13,14 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from osprofiler import profiler
 
 from mistral import exceptions as exc
 from mistral.workflow import commands
 from mistral.workflow import states
 
 
+@profiler.trace('dispatcher-dispatch-commands')
 def dispatch_workflow_commands(wf_ex, wf_cmds):
     # TODO(rakhmerov): I don't like these imports but otherwise we have
     # import cycles.
@@ -31,11 +34,7 @@ def dispatch_workflow_commands(wf_ex, wf_cmds):
         if isinstance(cmd, (commands.RunTask, commands.RunExistingTask)):
             task_handler.run_task(cmd)
         elif isinstance(cmd, commands.SetWorkflowState):
-            # TODO(rakhmerov): Make just a single call to workflow_handler
-            if states.is_completed(cmd.new_state):
-                wf_handler.stop_workflow(cmd.wf_ex, cmd.new_state, cmd.msg)
-            else:
-                wf_handler.set_workflow_state(wf_ex, cmd.new_state, cmd.msg)
+            wf_handler.set_workflow_state(wf_ex, cmd.new_state, cmd.msg)
         elif isinstance(cmd, commands.Noop):
             # Do nothing.
             pass

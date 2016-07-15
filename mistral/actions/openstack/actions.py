@@ -14,25 +14,31 @@
 
 import functools
 
-from barbicanclient import client as barbicanclient
-from ceilometerclient.v2 import client as ceilometerclient
-from cinderclient.v2 import client as cinderclient
-from designateclient import client as designateclient
-from glanceclient.v2 import client as glanceclient
-from heatclient.v1 import client as heatclient
-from ironic_inspector_client import v1 as ironic_inspector_client
-from ironicclient.v1 import client as ironicclient
-from keystoneclient.auth import identity
-from keystoneclient import httpclient
-from keystoneclient.v3 import client as keystoneclient
-from mistralclient.api.v2 import client as mistralclient
-from neutronclient.v2_0 import client as neutronclient
-from novaclient import client as novaclient
 from oslo_config import cfg
 from oslo_log import log
-from swiftclient import client as swift_client
-from troveclient.v1 import client as troveclient
-from zaqarclient.queues.v2 import client as zaqarclient
+from oslo_utils import importutils
+
+from keystoneclient.auth import identity
+from keystoneclient import httpclient
+
+barbicanclient = importutils.try_import('barbicanclient.client')
+ceilometerclient = importutils.try_import('ceilometerclient.v2.client')
+cinderclient = importutils.try_import('cinderclient.v2.client')
+designateclient = importutils.try_import('designateclient.v1')
+glanceclient = importutils.try_import('glanceclient.v2.client')
+heatclient = importutils.try_import('heatclient.v1.client')
+keystoneclient = importutils.try_import('keystoneclient.v3.client')
+ironic_inspector_client = importutils.try_import('ironic_inspector_client.v1')
+ironicclient = importutils.try_import('ironicclient.v1.client')
+magnumclient = importutils.try_import('magnumclient.v1.client')
+mistralclient = importutils.try_import('mistralclient.api.v2.client')
+muranoclient = importutils.try_import('muranoclient.v1.client')
+neutronclient = importutils.try_import('neutronclient.v2_0.client')
+novaclient = importutils.try_import('novaclient.client')
+swift_client = importutils.try_import('swiftclient.client')
+tackerclient = importutils.try_import('tackerclient.v1_0.client')
+troveclient = importutils.try_import('troveclient.v1.client')
+zaqarclient = importutils.try_import('zaqarclient.queues.v2.client')
 
 from mistral.actions.openstack import base
 from mistral import context
@@ -58,7 +64,7 @@ class NovaAction(base.OpenStackAction):
             2,
             username=None,
             api_key=None,
-            endpoint_type='publicURL',
+            endpoint_type=CONF.os_actions_endpoint_type,
             service_type='compute',
             auth_token=ctx.auth_token,
             tenant_id=ctx.project_id,
@@ -79,7 +85,10 @@ class NovaAction(base.OpenStackAction):
 
 
 class GlanceAction(base.OpenStackAction):
-    _client_class = glanceclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return glanceclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -88,7 +97,7 @@ class GlanceAction(base.OpenStackAction):
 
         glance_endpoint = keystone_utils.get_endpoint_for_project('glance')
 
-        return self._client_class(
+        return self._get_client_class()(
             glance_endpoint.url,
             region_name=glance_endpoint.region,
             token=ctx.auth_token
@@ -96,32 +105,38 @@ class GlanceAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class("")
+        return cls._get_client_class()("fake_endpoint")
 
 
 class KeystoneAction(base.OpenStackAction):
-    _client_class = keystoneclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return keystoneclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
 
         LOG.debug("Keystone action security context: %s" % ctx)
 
+        # TODO(akovi) cacert is deprecated in favor of session
+        # TODO(akovi) this piece of code should be refactored
+        # TODO(akovi) to follow the new guide lines
         kwargs = {
             'token': ctx.auth_token,
-            'auth_url': CONF.keystone_authtoken.auth_uri,
+            'auth_url': ctx.auth_uri,
             'project_id': ctx.project_id,
-            'cacert': CONF.keystone_authtoken.cafile,
+            'cacert': ctx.auth_cacert,
         }
 
         # In case of trust-scoped token explicitly pass endpoint parameter.
         if (ctx.is_trust_scoped
                 or keystone_utils.is_token_trust_scoped(ctx.auth_token)):
-            kwargs['endpoint'] = CONF.keystone_authtoken.auth_uri
+            kwargs['endpoint'] = ctx.auth_uri
 
-        client = self._client_class(**kwargs)
+        client = self._get_client_class()(**kwargs)
 
-        client.management_url = CONF.keystone_authtoken.auth_uri
+        client.management_url = ctx.auth_uri
 
         return client
 
@@ -131,7 +146,7 @@ class KeystoneAction(base.OpenStackAction):
         authenticate = httpclient.HTTPClient.authenticate
 
         httpclient.HTTPClient.authenticate = lambda x: True
-        fake_client = cls._client_class()
+        fake_client = cls._get_client_class()()
 
         # Once we get fake client, return back authenticate method
         httpclient.HTTPClient.authenticate = authenticate
@@ -140,7 +155,10 @@ class KeystoneAction(base.OpenStackAction):
 
 
 class CeilometerAction(base.OpenStackAction):
-    _client_class = ceilometerclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return ceilometerclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -156,7 +174,7 @@ class CeilometerAction(base.OpenStackAction):
             {'tenant_id': ctx.project_id}
         )
 
-        return self._client_class(
+        return self._get_client_class()(
             endpoint_url,
             region_name=ceilometer_endpoint.region,
             token=ctx.auth_token,
@@ -165,11 +183,14 @@ class CeilometerAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class("")
+        return cls._get_client_class()("")
 
 
 class HeatAction(base.OpenStackAction):
-    _client_class = heatclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return heatclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -186,7 +207,7 @@ class HeatAction(base.OpenStackAction):
             }
         )
 
-        return self._client_class(
+        return self._get_client_class()(
             endpoint_url,
             region_name=heat_endpoint.region,
             token=ctx.auth_token,
@@ -195,11 +216,14 @@ class HeatAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class("")
+        return cls._get_client_class()("")
 
 
 class NeutronAction(base.OpenStackAction):
-    _client_class = neutronclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return neutronclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -208,16 +232,19 @@ class NeutronAction(base.OpenStackAction):
 
         neutron_endpoint = keystone_utils.get_endpoint_for_project('neutron')
 
-        return self._client_class(
+        return self._get_client_class()(
             endpoint_url=neutron_endpoint.url,
             region_name=neutron_endpoint.region,
             token=ctx.auth_token,
-            auth_url=CONF.keystone_authtoken.auth_uri
+            auth_url=ctx.auth_uri
         )
 
 
 class CinderAction(base.OpenStackAction):
-    _client_class = cinderclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return cinderclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -236,7 +263,7 @@ class CinderAction(base.OpenStackAction):
             }
         )
 
-        client = self._client_class(
+        client = self._get_client_class()(
             ctx.user_name,
             ctx.auth_token,
             project_id=ctx.project_id,
@@ -251,11 +278,14 @@ class CinderAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class()
+        return cls._get_client_class()()
 
 
 class MistralAction(base.OpenStackAction):
-    _client_class = mistralclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return mistralclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -275,7 +305,7 @@ class MistralAction(base.OpenStackAction):
             auth_url = keystone_endpoint.url
             mistral_url = None
 
-        return self._client_class(
+        return self._get_client_class()(
             mistral_url=mistral_url,
             auth_token=ctx.auth_token,
             project_id=ctx.project_id,
@@ -285,11 +315,14 @@ class MistralAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class()
+        return cls._get_client_class()()
 
 
 class TroveAction(base.OpenStackAction):
-    _client_class = troveclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return troveclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -305,7 +338,7 @@ class TroveAction(base.OpenStackAction):
             {'tenant_id': ctx.project_id}
         )
 
-        client = self._client_class(
+        client = self._get_client_class()(
             ctx.user_name,
             ctx.auth_token,
             project_id=ctx.project_id,
@@ -320,11 +353,14 @@ class TroveAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class("fake_user", "fake_passwd")
+        return cls._get_client_class()("fake_user", "fake_passwd")
 
 
 class IronicAction(base.OpenStackAction):
-    _client_class = ironicclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return ironicclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -333,7 +369,7 @@ class IronicAction(base.OpenStackAction):
 
         ironic_endpoint = keystone_utils.get_endpoint_for_project('ironic')
 
-        return self._client_class(
+        return self._get_client_class()(
             ironic_endpoint.url,
             token=ctx.auth_token,
             region_name=ironic_endpoint.region
@@ -341,11 +377,14 @@ class IronicAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class("http://127.0.0.1:6385/")
+        return cls._get_client_class()("http://127.0.0.1:6385/")
 
 
 class BaremetalIntrospectionAction(base.OpenStackAction):
-    _client_class = ironic_inspector_client.ClientV1
+
+    @classmethod
+    def _get_client_class(cls):
+        return ironic_inspector_client.ClientV1
 
     def _get_client(self):
         ctx = context.ctx()
@@ -356,7 +395,7 @@ class BaremetalIntrospectionAction(base.OpenStackAction):
             service_type='baremetal-introspection'
         )
 
-        return self._client_class(
+        return self._get_client_class()(
             api_version=1,
             inspector_url=inspector_endpoint.url,
             auth_token=ctx.auth_token,
@@ -364,7 +403,10 @@ class BaremetalIntrospectionAction(base.OpenStackAction):
 
 
 class SwiftAction(base.OpenStackAction):
-    _client_class = swift_client.Connection
+
+    @classmethod
+    def _get_client_class(cls):
+        return swift_client.Connection
 
     def _get_client(self):
         ctx = context.ctx()
@@ -378,11 +420,14 @@ class SwiftAction(base.OpenStackAction):
             'preauthtoken': ctx.auth_token
         }
 
-        return self._client_class(**kwargs)
+        return self._get_client_class()(**kwargs)
 
 
 class ZaqarAction(base.OpenStackAction):
-    _client_class = zaqarclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return zaqarclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -401,11 +446,11 @@ class ZaqarAction(base.OpenStackAction):
         auth_opts = {'backend': 'keystone', 'options': opts}
         conf = {'auth_opts': auth_opts}
 
-        return self._client_class(zaqar_endpoint.url, conf=conf)
+        return self._get_client_class()(zaqar_endpoint.url, conf=conf)
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class("")
+        return cls._get_client_class()("")
 
     @classmethod
     def _get_client_method(cls, client):
@@ -475,7 +520,10 @@ class ZaqarAction(base.OpenStackAction):
 
 
 class BarbicanAction(base.OpenStackAction):
-    _client_class = barbicanclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return barbicanclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -492,7 +540,7 @@ class BarbicanAction(base.OpenStackAction):
             tenant_id=ctx.project_id
         )
 
-        return self._client_class(
+        return self._get_client_class()(
             project_id=ctx.project_id,
             endpoint=barbican_endpoint.url,
             auth=auth
@@ -500,7 +548,7 @@ class BarbicanAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class(
+        return cls._get_client_class()(
             project_id="1",
             endpoint="http://127.0.0.1:9311"
         )
@@ -574,7 +622,10 @@ class BarbicanAction(base.OpenStackAction):
 
 
 class DesignateAction(base.OpenStackAction):
-    _client_class = designateclient.Client
+
+    @classmethod
+    def _get_client_class(cls):
+        return designateclient.Client
 
     def _get_client(self):
         ctx = context.ctx()
@@ -590,13 +641,12 @@ class DesignateAction(base.OpenStackAction):
             {'tenant_id': ctx.project_id}
         )
 
-        client = self._client_class(
-            1,
-            ctx.user_name,
-            ctx.auth_token,
-            project_id=ctx.project_id,
-            auth_url=designate_url,
-            region_name=designate_endpoint.region
+        client = self._get_client_class()(
+            endpoint=designate_url,
+            tenant_id=ctx.project_id,
+            auth_url=ctx.auth_uri,
+            region_name=designate_endpoint.region,
+            service_type='dns'
         )
 
         client.client.auth_token = ctx.auth_token
@@ -606,4 +656,86 @@ class DesignateAction(base.OpenStackAction):
 
     @classmethod
     def _get_fake_client(cls):
-        return cls._client_class()
+        return cls._get_client_class()()
+
+
+class MagnumAction(base.OpenStackAction):
+
+    @classmethod
+    def _get_client_class(cls):
+        return magnumclient.Client
+
+    def _get_client(self):
+        ctx = context.ctx()
+
+        LOG.debug("Magnum action security context: %s" % ctx)
+
+        keystone_endpoint = keystone_utils.get_keystone_endpoint_v2()
+        auth_url = keystone_endpoint.url
+        magnum_url = keystone_utils.get_endpoint_for_project('magnum').url
+
+        return self._get_client_class()(
+            magnum_url=magnum_url,
+            auth_token=ctx.auth_token,
+            project_id=ctx.project_id,
+            user_id=ctx.user_id,
+            auth_url=auth_url
+        )
+
+    @classmethod
+    def _get_fake_client(cls):
+        return cls._get_client_class()(auth_url='X', magnum_url='X')
+
+
+class MuranoAction(base.OpenStackAction):
+
+    @classmethod
+    def _get_client_class(cls):
+        return muranoclient.Client
+
+    def _get_client(self):
+        ctx = context.ctx()
+
+        LOG.debug("Murano action security context: %s" % ctx)
+
+        keystone_endpoint = keystone_utils.get_keystone_endpoint_v2()
+        murano_endpoint = keystone_utils.get_endpoint_for_project('murano')
+
+        return self._get_client_class()(
+            endpoint=murano_endpoint.url,
+            token=ctx.auth_token,
+            tenant=ctx.project_id,
+            region_name=murano_endpoint.region,
+            auth_url=keystone_endpoint.url
+        )
+
+    @classmethod
+    def _get_fake_client(cls):
+        return cls._get_client_class()("http://127.0.0.1:8082/")
+
+
+class TackerAction(base.OpenStackAction):
+
+    @classmethod
+    def _get_client_class(cls):
+        return tackerclient.Client
+
+    def _get_client(self):
+        ctx = context.ctx()
+
+        LOG.debug("Tacker action security context: %s" % ctx)
+
+        keystone_endpoint = keystone_utils.get_keystone_endpoint_v2()
+        tacker_endpoint = keystone_utils.get_endpoint_for_project('tacker')
+
+        return self._get_client_class()(
+            endpoint_url=tacker_endpoint.url,
+            token=ctx.auth_token,
+            tenant_id=ctx.project_id,
+            region_name=tacker_endpoint.region,
+            auth_url=keystone_endpoint.url
+        )
+
+    @classmethod
+    def _get_fake_client(cls):
+        return cls._get_client_class()()

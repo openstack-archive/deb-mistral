@@ -20,10 +20,12 @@ from pecan import rest
 from wsme import types as wtypes
 import wsmeext.pecan as wsme_pecan
 
+from mistral.api import access_control as acl
 from mistral.api.controllers import resource
 from mistral.api.controllers.v2 import types
 from mistral.api.controllers.v2 import validation
 from mistral.api.hooks import content_type as ct_hook
+from mistral import context
 from mistral.db.v2 import api as db_api
 from mistral import exceptions as exc
 from mistral.services import actions
@@ -102,6 +104,7 @@ class ActionsController(rest.RestController, hooks.HookController):
     @wsme_pecan.wsexpose(Action, wtypes.text)
     def get(self, name):
         """Return the named action."""
+        acl.enforce('actions:get', context.ctx())
         LOG.info("Fetch action [name=%s]" % name)
 
         db_model = db_api.get_action_definition(name)
@@ -116,6 +119,7 @@ class ActionsController(rest.RestController, hooks.HookController):
         NOTE: This text is allowed to have definitions
             of multiple actions. In this case they all will be updated.
         """
+        acl.enforce('actions:update', context.ctx())
         definition = pecan.request.text
         LOG.info("Update action(s) [definition=%s]" % definition)
         scope = pecan.request.GET.get('scope', 'private')
@@ -126,12 +130,13 @@ class ActionsController(rest.RestController, hooks.HookController):
                 "%s" % (SCOPE_TYPES.values, scope)
             )
 
-        db_acts = actions.update_actions(definition, scope=scope)
-        models_dicts = [db_act.to_dict() for db_act in db_acts]
+        with db_api.transaction():
+            db_acts = actions.update_actions(definition, scope=scope)
 
+        models_dicts = [db_act.to_dict() for db_act in db_acts]
         action_list = [Action.from_dict(act) for act in models_dicts]
 
-        return Actions(actions=action_list).to_string()
+        return Actions(actions=action_list).to_json()
 
     @rest_utils.wrap_pecan_controller_exception
     @pecan.expose(content_type="text/plain")
@@ -141,6 +146,7 @@ class ActionsController(rest.RestController, hooks.HookController):
         NOTE: This text is allowed to have definitions
             of multiple actions. In this case they all will be created.
         """
+        acl.enforce('actions:create', context.ctx())
         definition = pecan.request.text
         scope = pecan.request.GET.get('scope', 'private')
         pecan.response.status = 201
@@ -153,17 +159,19 @@ class ActionsController(rest.RestController, hooks.HookController):
 
         LOG.info("Create action(s) [definition=%s]" % definition)
 
-        db_acts = actions.create_actions(definition, scope=scope)
-        models_dicts = [db_act.to_dict() for db_act in db_acts]
+        with db_api.transaction():
+            db_acts = actions.create_actions(definition, scope=scope)
 
+        models_dicts = [db_act.to_dict() for db_act in db_acts]
         action_list = [Action.from_dict(act) for act in models_dicts]
 
-        return Actions(actions=action_list).to_string()
+        return Actions(actions=action_list).to_json()
 
     @rest_utils.wrap_wsme_controller_exception
     @wsme_pecan.wsexpose(None, wtypes.text, status_code=204)
     def delete(self, name):
         """Delete the named action."""
+        acl.enforce('actions:delete', context.ctx())
         LOG.info("Delete action [name=%s]" % name)
 
         with db_api.transaction():
@@ -176,9 +184,14 @@ class ActionsController(rest.RestController, hooks.HookController):
             db_api.delete_action_definition(name)
 
     @wsme_pecan.wsexpose(Actions, types.uuid, int, types.uniquelist,
-                         types.list)
+                         types.list, types.uniquelist, wtypes.text,
+                         wtypes.text, SCOPE_TYPES, wtypes.text,
+                         types.uniquelist, wtypes.text, wtypes.text,
+                         wtypes.text, bool, wtypes.text)
     def get_all(self, marker=None, limit=None, sort_keys='name',
-                sort_dirs='asc'):
+                sort_dirs='asc', fields='', created_at=None, name=None,
+                scope=None, tag=None, tags=None, updated_at=None,
+                description=None, definition=None, is_system=None, input=None):
         """Return all actions.
 
         :param marker: Optional. Pagination marker for large data sets.
@@ -188,36 +201,67 @@ class ActionsController(rest.RestController, hooks.HookController):
         :param sort_keys: Optional. Columns to sort results by.
                           Default: name.
         :param sort_dirs: Optional. Directions to sort corresponding to
-                          sort_keys, "asc" or "desc" can be choosed.
+                          sort_keys, "asc" or "desc" can be chosen.
                           Default: asc.
+        :param fields: Optional. A specified list of fields of the resource to
+                       be returned. 'id' will be included automatically in
+                       fields if it's provided, since it will be used when
+                       constructing 'next' link.
+        :param name: Optional. Keep only resources with a specific name.
+        :param scope: Optional. Keep only resources with a specific scope.
+        :param definition: Optional. Keep only resources with a specific
+                           definition.
+        :param is_system: Optional. Keep only system actions or ad-hoc
+                          actions (if False).
+        :param input: Optional. Keep only resources with a specific input.
+        :param description: Optional. Keep only resources with a specific
+                            description.
+        :param tag: Optional. Keep only resources with a specific tag. If it is
+                    used with 'tags', it will be appended to the list of
+                    matching tags.
+        :param tags: Optional. Keep only resources containing specific tags.
+        :param created_at: Optional. Keep only resources created at a specific
+                           time and date.
+        :param updated_at: Optional. Keep only resources with specific latest
+                           update time and date.
 
         Where project_id is the same as the requester or
         project_id is different but the scope is public.
         """
-        LOG.info("Fetch actions. marker=%s, limit=%s, sort_keys=%s, "
-                 "sort_dirs=%s", marker, limit, sort_keys, sort_dirs)
+        acl.enforce('actions:list', context.ctx())
 
-        rest_utils.validate_query_params(limit, sort_keys, sort_dirs)
+        if tag is not None:
+            if tags is None:
+                tags = [tag]
+            else:
+                tags.append(tag)
 
-        marker_obj = None
-
-        if marker:
-            marker_obj = db_api.get_action_definition_by_id(marker)
-
-        db_action_defs = db_api.get_action_definitions(
-            limit=limit,
-            marker=marker_obj,
-            sort_keys=sort_keys,
-            sort_dirs=sort_dirs
+        filters = rest_utils.filters_to_dict(
+            created_at=created_at,
+            name=name,
+            scope=scope,
+            tags=tags,
+            updated_at=updated_at,
+            description=description,
+            definition=definition,
+            is_system=is_system,
+            input=input
         )
 
-        actions_list = [Action.from_dict(db_model.to_dict())
-                        for db_model in db_action_defs]
+        LOG.info("Fetch actions. marker=%s, limit=%s, sort_keys=%s, "
+                 "sort_dirs=%s, filters=%s", marker, limit, sort_keys,
+                 sort_dirs, filters)
 
-        return Actions.convert_with_links(
-            actions_list,
-            limit,
-            pecan.request.host_url,
-            sort_keys=','.join(sort_keys),
-            sort_dirs=','.join(sort_dirs)
+        return rest_utils.get_all(
+            Actions,
+            Action,
+            db_api.get_action_definitions,
+            db_api.get_action_definition_by_id,
+            resource_function=None,
+            marker=marker,
+            limit=limit,
+            sort_keys=sort_keys,
+            sort_dirs=sort_dirs,
+            fields=fields,
+            **filters
         )

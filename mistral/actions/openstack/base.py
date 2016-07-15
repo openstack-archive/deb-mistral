@@ -31,7 +31,6 @@ class OpenStackAction(base.Action):
     which are constructed via OpenStack Action generators.
     """
     _kwargs_for_run = {}
-    _client_class = None
     client_method_name = None
 
     def __init__(self, **kwargs):
@@ -46,6 +45,10 @@ class OpenStackAction(base.Action):
 
         """
         pass
+
+    @classmethod
+    def _get_client_class(cls):
+        return None
 
     @classmethod
     def _get_client_method(cls, client):
@@ -64,8 +67,8 @@ class OpenStackAction(base.Action):
         It is needed for getting client-method args and description for
         saving into DB.
         """
-        # Default is simple _client_class instance
-        return cls._client_class()
+        # Default is simple _get_client_class instance
+        return cls._get_client_class()()
 
     @classmethod
     def get_fake_client_method(cls):

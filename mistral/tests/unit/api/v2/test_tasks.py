@@ -20,7 +20,7 @@ import mock
 
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
-from mistral.engine import rpc
+from mistral.engine.rpc import rpc
 from mistral import exceptions as exc
 from mistral.tests.unit.api import base
 from mistral.workflow import data_flow
@@ -127,7 +127,7 @@ MOCK_WF_EX = mock.MagicMock(return_value=WF_EX)
 MOCK_TASK = mock.MagicMock(return_value=TASK_EX)
 MOCK_TASKS = mock.MagicMock(return_value=[TASK_EX])
 MOCK_EMPTY = mock.MagicMock(return_value=[])
-MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundException())
+MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundError())
 MOCK_ERROR_TASK = mock.MagicMock(return_value=ERROR_TASK_EX)
 MOCK_ERROR_ITEMS_TASK = mock.MagicMock(return_value=ERROR_ITEMS_TASK_EX)
 
@@ -184,7 +184,6 @@ class TestTasksController(base.APITest):
         self.assertDictEqual(TASK, resp.json)
 
         rpc.EngineClient.rerun_workflow.assert_called_with(
-            WF_EX.id,
             TASK_EX.id,
             reset=params['reset'],
             env=None
@@ -243,7 +242,6 @@ class TestTasksController(base.APITest):
         self.assertDictEqual(TASK, resp.json)
 
         rpc.EngineClient.rerun_workflow.assert_called_with(
-            WF_EX.id,
             TASK_EX.id,
             reset=params['reset'],
             env=json.loads(params['env'])

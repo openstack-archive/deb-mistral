@@ -119,8 +119,8 @@ MOCK_ACTIONS = mock.MagicMock(return_value=[ACTION_DB])
 MOCK_UPDATED_ACTION = mock.MagicMock(return_value=UPDATED_ACTION_DB)
 MOCK_DELETE = mock.MagicMock(return_value=None)
 MOCK_EMPTY = mock.MagicMock(return_value=[])
-MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundException())
-MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntryException())
+MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.DBEntityNotFoundError())
+MOCK_DUPLICATE = mock.MagicMock(side_effect=exc.DBDuplicateEntryError())
 
 
 class TestActionsController(base.APITest):
@@ -138,9 +138,7 @@ class TestActionsController(base.APITest):
         self.assertEqual(404, resp.status_int)
 
     @mock.patch.object(db_api, "get_action_definition", MOCK_ACTION)
-    @mock.patch.object(
-        db_api, "create_or_update_action_definition", MOCK_UPDATED_ACTION
-    )
+    @mock.patch.object(db_api, "update_action_definition", MOCK_UPDATED_ACTION)
     def test_put(self):
         resp = self.app.put(
             '/v2/actions',
@@ -153,8 +151,7 @@ class TestActionsController(base.APITest):
         self.assertEqual({"actions": [UPDATED_ACTION]}, resp.json)
 
     @mock.patch.object(db_api, "load_action_definition", MOCK_ACTION)
-    @mock.patch.object(
-        db_api, "create_or_update_action_definition")
+    @mock.patch.object(db_api, "update_action_definition")
     def test_put_public(self, mock_mtd):
         mock_mtd.return_value = UPDATED_ACTION_DB
 
@@ -170,9 +167,7 @@ class TestActionsController(base.APITest):
 
         self.assertEqual("public", mock_mtd.call_args[0][1]['scope'])
 
-    @mock.patch.object(
-        db_api, "create_or_update_action_definition", MOCK_NOT_FOUND
-    )
+    @mock.patch.object(db_api, "update_action_definition", MOCK_NOT_FOUND)
     def test_put_not_found(self):
         resp = self.app.put(
             '/v2/actions',

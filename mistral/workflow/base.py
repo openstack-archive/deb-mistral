@@ -1,6 +1,7 @@
 # Copyright 2014 - Mirantis, Inc.
 # Copyright 2015 - StackStorm, Inc.
 # Copyright 2015 - Huawei Technologies Co. Ltd
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -18,6 +19,7 @@ import abc
 import copy
 
 from oslo_log import log as logging
+from osprofiler import profiler
 
 from mistral import exceptions as exc
 from mistral import utils as u
@@ -95,6 +97,7 @@ class WorkflowController(object):
 
         return task_ex
 
+    @profiler.trace('workflow-controller-continue-workflow')
     def continue_workflow(self, task_ex=None, reset=True, env=None):
         """Calculates a list of commands to continue the workflow.
 
@@ -111,6 +114,8 @@ class WorkflowController(object):
         if self._is_paused_or_completed():
             return []
 
+        # TODO(rakhmerov): I think it should rather be a new method
+        # rerun_task() because it covers a different use case.
         if task_ex:
             return self._get_rerun_commands([task_ex], reset, env=env)
 
@@ -199,7 +204,11 @@ class WorkflowController(object):
         :param env: A set of environment variables to overwrite.
         :return: List of workflow commands.
         """
+
         for task_ex in task_exs:
+            # TODO(rakhmerov): It is wrong that we update something in
+            # workflow controller, by design it should not change system
+            # state. Fix it, it should happen outside.
             self._update_task_ex_env(task_ex, env)
 
         cmds = [commands.RunExistingTask(t_e, reset) for t_e in task_exs]

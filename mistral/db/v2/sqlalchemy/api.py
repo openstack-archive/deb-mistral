@@ -48,7 +48,7 @@ def setup_db():
     try:
         models.Workbook.metadata.create_all(b.get_engine())
     except sa.exc.OperationalError as e:
-        raise exc.DBException("Failed to setup database: %s" % e)
+        raise exc.DBError("Failed to setup database: %s" % e)
 
 
 def drop_db():
@@ -58,7 +58,7 @@ def drop_db():
         models.Workbook.metadata.drop_all(b.get_engine())
         _facade = None
     except Exception as e:
-        raise exc.DBException("Failed to drop database: %s" % e)
+        raise exc.DBError("Failed to drop database: %s" % e)
 
 
 # Transaction management.
@@ -153,20 +153,67 @@ def _delete_all(model, session=None, **kwargs):
     _secure_query(model).filter_by(**kwargs).delete(synchronize_session=False)
 
 
-def _get_collection_sorted_by_name(model, **kwargs):
+def _get_collection(model, limit=None, marker=None, sort_keys=None,
+                    sort_dirs=None, fields=None, query=None, **kwargs):
+    columns = (
+        tuple([getattr(model, f) for f in fields if hasattr(model, f)])
+        if fields else ()
+    )
+
+    if query is None:
+        tags = kwargs.pop('tags', None)
+        query = _secure_query(model, *columns).filter_by(**kwargs)
+
+        # To match the tag list, a resource must contain at least all of the
+        # tags present in the filter parameter.
+        if tags:
+            tag_attr = getattr(model, 'tags')
+            if len(tags) == 1:
+                expr = tag_attr.contains(tags)
+            else:
+                expr = sa.and_(*[tag_attr.contains(tag) for tag in tags])
+            query = query.filter(expr)
+
+    try:
+        return _paginate_query(
+            model,
+            limit,
+            marker,
+            sort_keys,
+            sort_dirs,
+            query
+        )
+    except Exception as e:
+        raise exc.DBQueryEntryException(
+            "Failed when querying database, error type: %s, "
+            "error message: %s" % (e.__class__.__name__, e.message)
+        )
+
+
+def _get_collection_sorted_by_name(model, fields=None, sort_keys=['name'],
+                                   **kwargs):
     # Note(lane): Sometimes tenant_A needs to get resources of tenant_B,
     # especially in resource sharing scenario, the resource owner needs to
     # check if the resource is used by a member.
-    query = (b.model_query(model) if 'project_id' in kwargs
-             else _secure_query(model))
+    columns = (
+        tuple([getattr(model, f) for f in fields if hasattr(model, f)])
+        if fields else ()
+    )
 
-    return query.filter_by(**kwargs).order_by(model.name).all()
+    query = (b.model_query(model, *columns) if 'project_id' in kwargs
+             else _secure_query(model, *columns))
+
+    return _get_collection(
+        model=model,
+        query=query,
+        sort_keys=sort_keys,
+        fields=fields,
+        **kwargs
+    )
 
 
-def _get_collection_sorted_by_time(model, **kwargs):
-    query = _secure_query(model)
-
-    return query.filter_by(**kwargs).order_by(model.created_at).all()
+def _get_collection_sorted_by_time(model, sort_keys=['created_at'], **kwargs):
+    return _get_collection(model, sort_keys=sort_keys, **kwargs)
 
 
 def _get_db_object_by_name(model, name):
@@ -183,7 +230,7 @@ def get_workbook(name):
     wb = _get_workbook(name)
 
     if not wb:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Workbook not found [workbook_name=%s]" % name
         )
 
@@ -207,7 +254,7 @@ def create_workbook(values, session=None):
     try:
         wb.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for WorkbookDefinition: %s" % e.columns
         )
 
@@ -219,7 +266,7 @@ def update_workbook(name, values, session=None):
     wb = _get_workbook(name)
 
     if not wb:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Workbook not found [workbook_name=%s]" % name
         )
 
@@ -241,7 +288,7 @@ def delete_workbook(name, session=None):
     wb = _get_workbook(name)
 
     if not wb:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Workbook not found [workbook_name=%s]" % name
         )
 
@@ -259,19 +306,6 @@ def delete_workbooks(**kwargs):
 
 # Workflow definitions.
 
-
-WORKFLOW_COL_MAPPING = {
-    'id': models.WorkflowDefinition.id,
-    'name': models.WorkflowDefinition.name,
-    'input': models.WorkflowDefinition.spec,
-    'definition': models.WorkflowDefinition.definition,
-    'tags': models.WorkflowDefinition.tags,
-    'scope': models.WorkflowDefinition.scope,
-    'created_at': models.WorkflowDefinition.created_at,
-    'updated_at': models.WorkflowDefinition.updated_at
-}
-
-
 def get_workflow_definition(identifier):
     """Gets workflow definition by name or uuid.
 
@@ -284,7 +318,7 @@ def get_workflow_definition(identifier):
               else _get_workflow_definition(identifier))
 
     if not wf_def:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Workflow not found [workflow_identifier=%s]" % identifier
         )
 
@@ -295,7 +329,7 @@ def get_workflow_definition_by_id(id):
     wf_def = _get_workflow_definition_by_id(id)
 
     if not wf_def:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Workflow not found [workflow_id=%s]" % id
         )
 
@@ -306,28 +340,17 @@ def load_workflow_definition(name):
     return _get_workflow_definition(name)
 
 
-def get_workflow_definitions(limit=None, marker=None, sort_keys=None,
-                             sort_dirs=None, fields=None, **kwargs):
-    columns = (
-        tuple(WORKFLOW_COL_MAPPING.get(f) for f in fields) if fields else ()
+def get_workflow_definitions(sort_keys=['created_at'], fields=None, **kwargs):
+    if fields and 'input' in fields:
+        fields.remove('input')
+        fields.append('spec')
+
+    return _get_collection(
+        model=models.WorkflowDefinition,
+        sort_keys=sort_keys,
+        fields=fields,
+        **kwargs
     )
-
-    query = _secure_query(models.WorkflowDefinition, *columns)
-
-    try:
-        return _paginate_query(
-            models.WorkflowDefinition,
-            limit,
-            marker,
-            sort_keys,
-            sort_dirs,
-            query
-        )
-    except Exception as e:
-        raise exc.DBQueryEntryException(
-            "Failed when querying database, error type: %s, "
-            "error message: %s" % (e.__class__.__name__, e.message)
-        )
 
 
 @b.session_aware()
@@ -339,7 +362,7 @@ def create_workflow_definition(values, session=None):
     try:
         wf_def.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for WorkflowDefinition: %s" % e.columns
         )
 
@@ -366,7 +389,7 @@ def update_workflow_definition(identifier, values, session=None):
 
         try:
             [get_cron_trigger(name) for name in cron_triggers]
-        except exc.DBEntityNotFoundException:
+        except exc.DBEntityNotFoundError:
             raise exc.NotAllowedException(
                 "Can not update scope of workflow that has triggers "
                 "associated in other tenants."
@@ -403,7 +426,7 @@ def delete_workflow_definition(identifier, session=None):
     cron_triggers = _get_associated_cron_triggers(identifier)
 
     if cron_triggers:
-        raise exc.DBException(
+        raise exc.DBError(
             "Can't delete workflow that has triggers associated. "
             "[workflow_identifier=%s], [cron_trigger_name(s)=%s]" %
             (identifier, ', '.join(cron_triggers))
@@ -449,7 +472,7 @@ def get_action_definition_by_id(id):
     action_def = _get_db_object_by_id(models.ActionDefinition, id)
 
     if not action_def:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Action not found [action_id=%s]" % id
         )
 
@@ -460,7 +483,7 @@ def get_action_definition(name):
     a_def = _get_action_definition(name)
 
     if not a_def:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Action definition not found [action_name=%s]" % name
         )
 
@@ -471,24 +494,12 @@ def load_action_definition(name):
     return _get_action_definition(name)
 
 
-def get_action_definitions(limit=None, marker=None, sort_keys=['name'],
-                           sort_dirs=None, **kwargs):
-    query = _secure_query(models.ActionDefinition).filter_by(**kwargs)
-
-    try:
-        return _paginate_query(
-            models.ActionDefinition,
-            limit,
-            marker,
-            sort_keys,
-            sort_dirs,
-            query
-        )
-    except Exception as e:
-        raise exc.DBQueryEntryException(
-            "Failed when querying database, error type: %s, "
-            "error message: %s" % (e.__class__.__name__, e.message)
-        )
+def get_action_definitions(sort_keys=['name'], **kwargs):
+    return _get_collection(
+        model=models.ActionDefinition,
+        sort_keys=sort_keys,
+        **kwargs
+    )
 
 
 @b.session_aware()
@@ -500,7 +511,7 @@ def create_action_definition(values, session=None):
     try:
         a_def.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for action %s: %s" % (a_def.name, e.columns)
         )
 
@@ -512,7 +523,7 @@ def update_action_definition(name, values, session=None):
     a_def = _get_action_definition(name)
 
     if not a_def:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Action definition not found [action_name=%s]" % name
         )
 
@@ -534,7 +545,7 @@ def delete_action_definition(name, session=None):
     a_def = _get_action_definition(name)
 
     if not a_def:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Action definition not found [action_name=%s]" % name
         )
 
@@ -556,7 +567,7 @@ def get_execution(id):
     ex = _get_execution(id)
 
     if not ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Execution not found [execution_id=%s]" % id
         )
 
@@ -584,7 +595,7 @@ def create_execution(values, session=None):
     try:
         ex.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for Execution: %s" % e.columns
         )
 
@@ -596,7 +607,7 @@ def update_execution(id, values, session=None):
     ex = _get_execution(id)
 
     if not ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Execution not found [execution_id=%s]" % id
         )
 
@@ -618,7 +629,7 @@ def delete_execution(id, session=None):
     ex = _get_execution(id)
 
     if not ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Execution not found [execution_id=%s]" % id
         )
 
@@ -644,7 +655,7 @@ def get_action_execution(id):
     a_ex = _get_action_execution(id)
 
     if not a_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "ActionExecution not found [id=%s]" % id
         )
 
@@ -672,7 +683,7 @@ def create_action_execution(values, session=None):
     try:
         a_ex.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for ActionExecution: %s" % e.columns
         )
 
@@ -684,7 +695,7 @@ def update_action_execution(id, values, session=None):
     a_ex = _get_action_execution(id)
 
     if not a_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "ActionExecution not found [id=%s]" % id
         )
 
@@ -706,7 +717,7 @@ def delete_action_execution(id, session=None):
     a_ex = _get_action_execution(id)
 
     if not a_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "ActionExecution not found [id=%s]" % id
         )
 
@@ -732,7 +743,7 @@ def get_workflow_execution(id):
     wf_ex = _get_workflow_execution(id)
 
     if not wf_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "WorkflowExecution not found [id=%s]" % id
         )
 
@@ -747,24 +758,12 @@ def ensure_workflow_execution_exists(id):
     get_workflow_execution(id)
 
 
-def get_workflow_executions(limit=None, marker=None, sort_keys=['created_at'],
-                            sort_dirs=None, **kwargs):
-    query = _secure_query(models.WorkflowExecution).filter_by(**kwargs)
-
-    try:
-        return _paginate_query(
-            models.WorkflowExecution,
-            limit,
-            marker,
-            sort_keys,
-            sort_dirs,
-            query
-        )
-    except Exception as e:
-        raise exc.DBQueryEntryException(
-            "Failed when quering database, error type: %s, "
-            "error message: %s" % (e.__class__.__name__, e.message)
-        )
+def get_workflow_executions(sort_keys=['created_at'], **kwargs):
+    return _get_collection(
+        models.WorkflowExecution,
+        sort_keys=sort_keys,
+        **kwargs
+    )
 
 
 @b.session_aware()
@@ -776,7 +775,7 @@ def create_workflow_execution(values, session=None):
     try:
         wf_ex.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for WorkflowExecution: %s" % e.columns
         )
 
@@ -788,7 +787,7 @@ def update_workflow_execution(id, values, session=None):
     wf_ex = _get_workflow_execution(id)
 
     if not wf_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "WorkflowExecution not found [id=%s]" % id
         )
 
@@ -810,7 +809,7 @@ def delete_workflow_execution(id, session=None):
     wf_ex = _get_workflow_execution(id)
 
     if not wf_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "WorkflowExecution not found [id=%s]" % id
         )
 
@@ -832,7 +831,7 @@ def get_task_execution(id):
     task_ex = _get_task_execution(id)
 
     if not task_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Task execution not found [id=%s]" % id
         )
 
@@ -856,7 +855,7 @@ def create_task_execution(values, session=None):
     try:
         task_ex.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for TaskExecution: %s" % e.columns
         )
 
@@ -868,7 +867,7 @@ def update_task_execution(id, values, session=None):
     task_ex = _get_task_execution(id)
 
     if not task_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "TaskExecution not found [id=%s]" % id
         )
 
@@ -890,7 +889,7 @@ def delete_task_execution(id, session=None):
     task_ex = _get_task_execution(id)
 
     if not task_ex:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "TaskExecution not found [id=%s]" % id
         )
 
@@ -920,7 +919,7 @@ def create_delayed_call(values, session=None):
     try:
         delayed_call.save(session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for DelayedCall: %s" % e.columns
         )
 
@@ -932,7 +931,7 @@ def delete_delayed_call(id, session=None):
     delayed_call = _get_delayed_call(id)
 
     if not delayed_call:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "DelayedCall not found [id=%s]" % id
         )
 
@@ -982,7 +981,7 @@ def get_delayed_call(id, session=None):
     delayed_call = _get_delayed_call(id=id, session=session)
 
     if not delayed_call:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Delayed Call not found [id=%s]" % id
         )
 
@@ -1020,7 +1019,7 @@ def get_cron_trigger(name):
     cron_trigger = _get_cron_trigger(name)
 
     if not cron_trigger:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Cron trigger not found [name=%s]" % name
         )
 
@@ -1054,14 +1053,14 @@ def create_cron_trigger(values, session=None):
     try:
         cron_trigger.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for cron trigger %s: %s"
             % (cron_trigger.name, e.columns)
         )
     # TODO(nmakhotkin): Remove this 'except' after fixing
     # https://bugs.launchpad.net/oslo.db/+bug/1458583.
     except db_exc.DBError as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for cron trigger: %s" % e
         )
 
@@ -1073,7 +1072,7 @@ def update_cron_trigger(name, values, session=None, query_filter=None):
     cron_trigger = _get_cron_trigger(name)
 
     if not cron_trigger:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Cron trigger not found [name=%s]" % name
         )
 
@@ -1122,7 +1121,7 @@ def delete_cron_trigger(name, session=None):
     cron_trigger = _get_cron_trigger(name)
 
     if not cron_trigger:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Cron trigger not found [name=%s]" % name
         )
 
@@ -1144,10 +1143,15 @@ def _get_cron_trigger(name):
     return _get_db_object_by_name(models.CronTrigger, name)
 
 
-def _get_cron_triggers(**kwargs):
+def _get_cron_triggers(*columns, **kwargs):
     query = b.model_query(models.CronTrigger)
 
-    return query.filter_by(**kwargs).all()
+    return _get_collection(
+        models.CronTrigger,
+        query=query,
+        *columns,
+        **kwargs
+    )
 
 
 # Environments.
@@ -1156,7 +1160,7 @@ def get_environment(name):
     env = _get_environment(name)
 
     if not env:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Environment not found [name=%s]" % name
         )
 
@@ -1180,7 +1184,7 @@ def create_environment(values, session=None):
     try:
         env.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for Environment: %s" % e.columns
         )
 
@@ -1192,7 +1196,7 @@ def update_environment(name, values, session=None):
     env = _get_environment(name)
 
     if not env:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Environment not found [name=%s]" % name
         )
 
@@ -1216,7 +1220,7 @@ def delete_environment(name, session=None):
     env = _get_environment(name)
 
     if not env:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Environment not found [name=%s]" % name
         )
 
@@ -1278,7 +1282,7 @@ def create_resource_member(values, session=None):
     try:
         res_member.save(session=session)
     except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryException(
+        raise exc.DBDuplicateEntryError(
             "Duplicate entry for ResourceMember: %s" % e.columns
         )
 
@@ -1299,7 +1303,7 @@ def get_resource_member(resource_id, res_type, member_id):
     ).first()
 
     if not res_member:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Resource member not found [resource_id=%s, member_id=%s]" %
             (resource_id, member_id)
         )
@@ -1329,7 +1333,7 @@ def update_resource_member(resource_id, res_type, member_id, values,
     # Only member who is not the owner of the resource can update the
     # membership status.
     if member_id != security.get_project_id():
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Resource member not found [resource_id=%s, member_id=%s]" %
             (resource_id, member_id)
         )
@@ -1343,7 +1347,7 @@ def update_resource_member(resource_id, res_type, member_id, values,
     ).first()
 
     if not res_member:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Resource member not found [resource_id=%s, member_id=%s]" %
             (resource_id, member_id)
         )
@@ -1362,7 +1366,7 @@ def delete_resource_member(resource_id, res_type, member_id, session=None):
     res_member = query.filter(_get_criterion(resource_id, member_id)).first()
 
     if not res_member:
-        raise exc.DBEntityNotFoundException(
+        raise exc.DBEntityNotFoundError(
             "Resource member not found [resource_id=%s, member_id=%s]" %
             (resource_id, member_id)
         )
