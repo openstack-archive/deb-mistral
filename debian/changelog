@@ -1,3 +1,9 @@
+mistral (2.0.0-3) unstable; urgency=medium
+
+  * Correct typo in debconf template name mistal -> mistral (Closes: #826562).
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 08 Aug 2016 16:24:10 +0200
+
 mistral (2.0.0-2) unstable; urgency=medium
 
   * Updated Portuguese translation for debconf messages (Closes: #821243).

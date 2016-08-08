@@ -32,7 +32,7 @@ _Description: Keystone admin name:
  To register the service endpoint, this package needs to know the Admin login,
  name, project name, and password to the Keystone server.
 
-Template: mistal/keystone-project-name
+Template: mistral/keystone-project-name
 Type: string
 Default: admin
 _Description: Keystone admin project name:
