@@ -1,0 +1,11 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+2: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Workflow+1: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Code-Review+1: zhangguoqing <zhang.guoqing@99cloud.net>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 16 Oct 2015 12:47:01 +0000
+Reviewed-on: https://review.openstack.org/235835
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/liberty

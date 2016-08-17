@@ -1,0 +1,8 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 14 Oct 2015 11:03:41 +0000
+Reviewed-on: https://review.openstack.org/234635
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/liberty

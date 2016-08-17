@@ -1,0 +1,8 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 01 May 2015 05:38:16 +0000
+Reviewed-on: https://review.openstack.org/179326
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/kilo
