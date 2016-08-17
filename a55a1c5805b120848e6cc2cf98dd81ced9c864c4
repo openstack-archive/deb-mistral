@@ -1,0 +1,9 @@
+Code-Review+2: Lingxian Kong <anlin.kong@gmail.com>
+Code-Review+2: hardik <hardik.parekh@nectechnologies.in>
+Workflow+1: hardik <hardik.parekh@nectechnologies.in>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 25 Jul 2016 11:11:58 +0000
+Reviewed-on: https://review.openstack.org/345295
+Project: openstack/deb-mistral
+Branch: refs/heads/master

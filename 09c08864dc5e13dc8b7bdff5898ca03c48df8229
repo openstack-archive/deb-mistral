@@ -1,0 +1,10 @@
+Code-Review+2: hardik <hardik.parekh@nectechnologies.in>
+Code-Review+2: Dawid Deja <dawid.deja@intel.com>
+Workflow+1: Dawid Deja <dawid.deja@intel.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 02 Aug 2016 09:36:40 +0000
+Reviewed-on: https://review.openstack.org/348828
+Project: openstack/deb-mistral
+Branch: refs/heads/master

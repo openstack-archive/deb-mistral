@@ -1,0 +1,9 @@
+Code-Review+2: Winson Chan <wcchan@stackstorm.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 20 Jul 2016 04:27:55 +0000
+Reviewed-on: https://review.openstack.org/344152
+Project: openstack/deb-mistral
+Branch: refs/heads/master

@@ -1,0 +1,8 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 18 Jul 2016 04:53:20 +0000
+Reviewed-on: https://review.openstack.org/343367
+Project: openstack/deb-mistral
+Branch: refs/heads/master
