@@ -1,0 +1,9 @@
+Code-Review+2: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 03 Jun 2016 16:40:28 +0000
+Reviewed-on: https://review.openstack.org/325229
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/mitaka
