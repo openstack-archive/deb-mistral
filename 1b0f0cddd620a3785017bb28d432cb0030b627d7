@@ -1,0 +1,9 @@
+Code-Review+2: Hardik Parekh <hardik.parekh047@gmail.com>
+Code-Review+2: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Workflow+1: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 08 Sep 2016 10:10:32 +0000
+Reviewed-on: https://review.openstack.org/356343
+Project: openstack/deb-mistral
+Branch: refs/heads/master

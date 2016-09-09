@@ -1,0 +1,11 @@
+Code-Review+1: Dougal Matthews <dougal@redhat.com>
+Code-Review+2: Hardik Parekh <hardik.parekh047@gmail.com>
+Code-Review+1: Marcos Fermín Lobo <lobo@lukos.org>
+Code-Review+2: Lingxian Kong <anlin.kong@gmail.com>
+Workflow+1: Lingxian Kong <anlin.kong@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 05 Sep 2016 02:22:05 +0000
+Reviewed-on: https://review.openstack.org/364852
+Project: openstack/deb-mistral
+Branch: refs/heads/master

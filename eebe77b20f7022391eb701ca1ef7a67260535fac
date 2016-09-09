@@ -1,0 +1,9 @@
+Code-Review+2: Lingxian Kong <anlin.kong@gmail.com>
+Code-Review+2: Dawid Deja <dawid.deja@intel.com>
+Workflow+1: Dawid Deja <dawid.deja@intel.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 24 Aug 2016 16:14:48 +0000
+Reviewed-on: https://review.openstack.org/269971
+Project: openstack/deb-mistral
+Branch: refs/heads/master
