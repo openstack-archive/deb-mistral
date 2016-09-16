@@ -1,0 +1,13 @@
+Code-Review+2: Dawid Deja <dawid.deja@intel.com>
+Code-Review+1: Alex Schultz <aschultz@redhat.com>
+Code-Review+1: Ivan Berezovskiy <iberezovskiy@mirantis.com>
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+1: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Code-Review+2: Anastasia Kuznetsova <akuznetsova@mirantis.com>
+Workflow+1: Anastasia Kuznetsova <akuznetsova@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 16 Sep 2016 13:48:44 +0000
+Reviewed-on: https://review.openstack.org/369253
+Project: openstack/deb-mistral
+Branch: refs/heads/master
