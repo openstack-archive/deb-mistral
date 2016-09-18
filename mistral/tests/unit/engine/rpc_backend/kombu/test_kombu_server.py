@@ -14,14 +14,14 @@
 #    under the License.
 
 from mistral import exceptions as exc
-from mistral.tests.unit.engine.rpc.kombu import base
-from mistral.tests.unit.engine.rpc.kombu import fake_kombu
+from mistral.tests.unit.engine.rpc_backend.kombu import base
+from mistral.tests.unit.engine.rpc_backend.kombu import fake_kombu
 
 import mock
 import socket
 
 with mock.patch.dict('sys.modules', kombu=fake_kombu):
-    from mistral.engine.rpc.kombu import kombu_server
+    from mistral.engine.rpc_backend.kombu import kombu_server
 
 
 class TestException(exc.MistralError):
@@ -69,7 +69,7 @@ class KombuServerTestCase(base.KombuTestCase):
             routing_key=reply_to,
             correlation_id=corr_id,
             type=type,
-            serializer=None
+            serializer='mistral_serialization'
         )
 
     def test_run_launch_successfully(self):
@@ -164,7 +164,7 @@ class KombuServerTestCase(base.KombuTestCase):
             test_exception,
             reply_to,
             correlation_id,
-            type='error'
+            res_type='error'
         )
 
     @mock.patch.object(
@@ -174,9 +174,9 @@ class KombuServerTestCase(base.KombuTestCase):
     )
     def test__on_message_rpc_method_not_found(self):
         request = {
-            'rpc_ctx': self.ctx,
+            'rpc_ctx': {},
             'rpc_method': 'not_found_method',
-            'arguments': None
+            'arguments': {}
         }
 
         message = mock.MagicMock()
@@ -194,11 +194,13 @@ class KombuServerTestCase(base.KombuTestCase):
 
     @mock.patch.object(kombu_server.KombuRPCServer, 'publish_message')
     @mock.patch.object(kombu_server.KombuRPCServer, '_get_rpc_method')
-    def test__on_message_is_async(self, get_rpc_method, publish_message):
+    @mock.patch('mistral.context.MistralContext')
+    def test__on_message_is_async(self, mistral_context, get_rpc_method,
+                                  publish_message):
         result = 'result'
         request = {
             'async': True,
-            'rpc_ctx': self.ctx,
+            'rpc_ctx': {},
             'rpc_method': 'found_method',
             'arguments': {
                 'a': 1,
@@ -211,13 +213,14 @@ class KombuServerTestCase(base.KombuTestCase):
             'reply_to': None,
             'correlation_id': None
         }
+        message.delivery_info.get.return_value = False
 
         rpc_method = mock.MagicMock(return_value=result)
         get_rpc_method.return_value = rpc_method
 
         self.server._on_message(request, message)
         rpc_method.assert_called_once_with(
-            rpc_ctx=self.ctx,
+            rpc_ctx=mistral_context(),
             a=1,
             b=2
         )
@@ -225,11 +228,13 @@ class KombuServerTestCase(base.KombuTestCase):
 
     @mock.patch.object(kombu_server.KombuRPCServer, 'publish_message')
     @mock.patch.object(kombu_server.KombuRPCServer, '_get_rpc_method')
-    def test__on_message_is_sync(self, get_rpc_method, publish_message):
+    @mock.patch('mistral.context.MistralContext')
+    def test__on_message_is_sync(self, mistral_context, get_rpc_method,
+                                 publish_message):
         result = 'result'
         request = {
             'async': False,
-            'rpc_ctx': self.ctx,
+            'rpc_ctx': {},
             'rpc_method': 'found_method',
             'arguments': {
                 'a': 1,
@@ -244,13 +249,14 @@ class KombuServerTestCase(base.KombuTestCase):
             'reply_to': reply_to,
             'correlation_id': correlation_id
         }
+        message.delivery_info.get.return_value = False
 
         rpc_method = mock.MagicMock(return_value=result)
         get_rpc_method.return_value = rpc_method
 
         self.server._on_message(request, message)
         rpc_method.assert_called_once_with(
-            rpc_ctx=self.ctx,
+            rpc_ctx=mistral_context(),
             a=1,
             b=2
         )

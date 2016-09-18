@@ -20,7 +20,7 @@ import mock
 
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
-from mistral.engine.rpc import rpc
+from mistral.engine.rpc_backend import rpc
 from mistral import exceptions as exc
 from mistral.tests.unit.api import base
 from mistral.workflow import data_flow
@@ -104,6 +104,9 @@ TASK = {
     'processed': True
 }
 
+TASK_WITHOUT_RESULT = copy.deepcopy(TASK)
+del TASK_WITHOUT_RESULT['result']
+
 UPDATED_TASK_EX = copy.deepcopy(TASK_EX)
 UPDATED_TASK_EX['state'] = 'SUCCESS'
 UPDATED_TASK = copy.deepcopy(TASK)
@@ -157,7 +160,7 @@ class TestTasksController(base.APITest):
         self.assertEqual(200, resp.status_int)
 
         self.assertEqual(1, len(resp.json['tasks']))
-        self.assertDictEqual(TASK, resp.json['tasks'][0])
+        self.assertDictEqual(TASK_WITHOUT_RESULT, resp.json['tasks'][0])
 
     @mock.patch.object(db_api, 'get_task_executions', MOCK_EMPTY)
     def test_get_all_empty(self):

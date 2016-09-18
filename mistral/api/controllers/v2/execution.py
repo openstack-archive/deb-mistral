@@ -1,6 +1,7 @@
 # Copyright 2013 - Mirantis, Inc.
 # Copyright 2015 - StackStorm, Inc.
 # Copyright 2015 Huawei Technologies Co., Ltd.
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -20,112 +21,62 @@ from wsme import types as wtypes
 import wsmeext.pecan as wsme_pecan
 
 from mistral.api import access_control as acl
-from mistral.api.controllers import resource
+from mistral.api.controllers.v2 import resources
 from mistral.api.controllers.v2 import task
 from mistral.api.controllers.v2 import types
 from mistral import context
 from mistral.db.v2 import api as db_api
-from mistral.engine.rpc import rpc
+from mistral.engine.rpc_backend import rpc
 from mistral import exceptions as exc
 from mistral.services import workflows as wf_service
+from mistral.utils import filter_utils
 from mistral.utils import rest_utils
 from mistral.workflow import states
 
 
 LOG = logging.getLogger(__name__)
-STATE_TYPES = wtypes.Enum(str, states.IDLE, states.RUNNING, states.SUCCESS,
-                          states.ERROR, states.PAUSED)
+
+STATE_TYPES = wtypes.Enum(
+    str,
+    states.IDLE,
+    states.RUNNING,
+    states.SUCCESS,
+    states.ERROR,
+    states.PAUSED,
+    states.CANCELLED
+)
+
 
 # TODO(rakhmerov): Make sure to make all needed renaming on public API.
-
-
-class Execution(resource.Resource):
-    """Execution resource."""
-
-    id = wtypes.text
-    "id is immutable and auto assigned."
-
-    workflow_name = wtypes.text
-    "reference to workflow definition"
-
-    workflow_id = wtypes.text
-    "reference to workflow ID"
-
-    description = wtypes.text
-    "description of workflow execution."
-
-    params = types.jsontype
-    "params define workflow type specific parameters. For example, reverse \
-    workflow takes one parameter 'task_name' that defines a target task."
-
-    task_execution_id = wtypes.text
-    "reference to the parent task execution"
-
-    state = wtypes.text
-    "state can be one of: IDLE, RUNNING, SUCCESS, ERROR, PAUSED"
-
-    state_info = wtypes.text
-    "an optional state information string"
-
-    input = types.jsontype
-    "input is a JSON structure containing workflow input values."
-
-    output = types.jsontype
-    "output is a workflow output."
-
-    created_at = wtypes.text
-    updated_at = wtypes.text
-
-    @classmethod
-    def sample(cls):
-        return cls(id='123e4567-e89b-12d3-a456-426655440000',
-                   workflow_name='flow',
-                   workflow_id='123e4567-e89b-12d3-a456-426655441111',
-                   description='this is the first execution.',
-                   state='SUCCESS',
-                   input={},
-                   output={},
-                   params={'env': {'k1': 'abc', 'k2': 123}},
-                   created_at='1970-01-01T00:00:00.000000',
-                   updated_at='1970-01-01T00:00:00.000000')
-
-
-class Executions(resource.ResourceList):
-    """A collection of Execution resources."""
-
-    executions = [Execution]
-
-    def __init__(self, **kwargs):
-        self._type = 'executions'
-
-        super(Executions, self).__init__(**kwargs)
-
-    @classmethod
-    def sample(cls):
-        executions_sample = cls()
-        executions_sample.executions = [Execution.sample()]
-        executions_sample.next = "http://localhost:8989/v2/executions?" \
-                                 "sort_keys=id,workflow_name&" \
-                                 "sort_dirs=asc,desc&limit=10&" \
-                                 "marker=123e4567-e89b-12d3-a456-426655440000"
-
-        return executions_sample
 
 
 class ExecutionsController(rest.RestController):
     tasks = task.ExecutionTasksController()
 
     @rest_utils.wrap_wsme_controller_exception
-    @wsme_pecan.wsexpose(Execution, wtypes.text)
+    @wsme_pecan.wsexpose(resources.Execution, wtypes.text)
     def get(self, id):
         """Return the specified Execution."""
         acl.enforce("executions:get", context.ctx())
+
         LOG.info("Fetch execution [id=%s]" % id)
 
-        return Execution.from_dict(db_api.get_workflow_execution(id).to_dict())
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(id)
+
+            # If a single object is requested we need to explicitly load
+            # 'output' attribute. We don't do this for collections to reduce
+            # amount of DB queries and network traffic.
+            hasattr(wf_ex, 'output')
+
+        return resources.Execution.from_dict(wf_ex.to_dict())
 
     @rest_utils.wrap_wsme_controller_exception
-    @wsme_pecan.wsexpose(Execution, wtypes.text, body=Execution)
+    @wsme_pecan.wsexpose(
+        resources.Execution,
+        wtypes.text,
+        body=resources.Execution
+    )
     def put(self, id, wf_ex):
         """Update the specified workflow execution.
 
@@ -133,6 +84,7 @@ class ExecutionsController(rest.RestController):
         :param wf_ex: Execution object.
         """
         acl.enforce('executions:update', context.ctx())
+
         LOG.info('Update execution [id=%s, execution=%s]' % (id, wf_ex))
 
         db_api.ensure_workflow_execution_exists(id)
@@ -185,14 +137,14 @@ class ExecutionsController(rest.RestController):
                 )
 
         if delta.get('state'):
-            if delta.get('state') == states.PAUSED:
+            if states.is_paused(delta.get('state')):
                 wf_ex = rpc.get_engine_client().pause_workflow(id)
             elif delta.get('state') == states.RUNNING:
                 wf_ex = rpc.get_engine_client().resume_workflow(
                     id,
                     env=delta.get('env')
                 )
-            elif delta.get('state') in [states.SUCCESS, states.ERROR]:
+            elif states.is_completed(delta.get('state')):
                 msg = wf_ex.state_info if wf_ex.state_info else None
                 wf_ex = rpc.get_engine_client().stop_workflow(
                     id,
@@ -208,23 +160,29 @@ class ExecutionsController(rest.RestController):
                             states.RUNNING,
                             states.PAUSED,
                             states.SUCCESS,
-                            states.ERROR
+                            states.ERROR,
+                            states.CANCELLED
                         ])
                     )
                 )
 
-        return Execution.from_dict(
+        return resources.Execution.from_dict(
             wf_ex if isinstance(wf_ex, dict) else wf_ex.to_dict()
         )
 
     @rest_utils.wrap_wsme_controller_exception
-    @wsme_pecan.wsexpose(Execution, body=Execution, status_code=201)
+    @wsme_pecan.wsexpose(
+        resources.Execution,
+        body=resources.Execution,
+        status_code=201
+    )
     def post(self, wf_ex):
         """Create a new Execution.
 
         :param wf_ex: Execution object with input content.
         """
         acl.enforce('executions:create', context.ctx())
+
         LOG.info('Create execution [execution=%s]' % wf_ex)
 
         engine = rpc.get_engine_client()
@@ -244,21 +202,22 @@ class ExecutionsController(rest.RestController):
             **exec_dict.get('params') or {}
         )
 
-        return Execution.from_dict(result)
+        return resources.Execution.from_dict(result)
 
     @rest_utils.wrap_wsme_controller_exception
     @wsme_pecan.wsexpose(None, wtypes.text, status_code=204)
     def delete(self, id):
         """Delete the specified Execution."""
         acl.enforce('executions:delete', context.ctx())
+
         LOG.info('Delete execution [id=%s]' % id)
 
         return db_api.delete_workflow_execution(id)
 
-    @wsme_pecan.wsexpose(Executions, types.uuid, int, types.uniquelist,
-                         types.list, types.uniquelist, wtypes.text,
-                         types.uuid, wtypes.text, types.jsontype, types.uuid,
-                         STATE_TYPES, wtypes.text, types.jsontype,
+    @wsme_pecan.wsexpose(resources.Executions, types.uuid, int,
+                         types.uniquelist, types.list, types.uniquelist,
+                         wtypes.text, types.uuid, wtypes.text, types.jsontype,
+                         types.uuid, STATE_TYPES, wtypes.text, types.jsontype,
                          types.jsontype, wtypes.text, wtypes.text)
     def get_all(self, marker=None, limit=None, sort_keys='created_at',
                 sort_dirs='asc', fields='', workflow_name=None,
@@ -302,7 +261,7 @@ class ExecutionsController(rest.RestController):
         """
         acl.enforce('executions:list', context.ctx())
 
-        filters = rest_utils.filters_to_dict(
+        filters = filter_utils.create_filters_from_request_params(
             created_at=created_at,
             workflow_name=workflow_name,
             workflow_id=workflow_id,
@@ -323,11 +282,10 @@ class ExecutionsController(rest.RestController):
         )
 
         return rest_utils.get_all(
-            Executions,
-            Execution,
+            resources.Executions,
+            resources.Execution,
             db_api.get_workflow_executions,
             db_api.get_workflow_execution,
-            resource_function=None,
             marker=marker,
             limit=limit,
             sort_keys=sort_keys,

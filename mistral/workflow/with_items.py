@@ -1,6 +1,7 @@
 # Copyright 2014 - Mirantis, Inc.
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+#    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
 #    You may obtain a copy of the License at
 #
@@ -15,7 +16,6 @@
 import copy
 import six
 
-from mistral.db.v2 import api as db_api
 from mistral import exceptions as exc
 from mistral.workflow import states
 
@@ -44,13 +44,11 @@ def get_count(task_ex):
 
 
 def is_completed(task_ex):
-    action_exs = db_api.get_action_executions(
-        task_execution_id=task_ex.id,
-        accepted=True
-    )
+    execs = list(filter(lambda t: t.accepted, task_ex.executions))
+
     count = get_count(task_ex) or 1
 
-    return count == len(action_exs)
+    return count == len(execs)
 
 
 def get_index(task_ex):
@@ -69,9 +67,12 @@ def get_concurrency(task_ex):
 
 def get_final_state(task_ex):
     find_error = lambda x: x.accepted and x.state == states.ERROR
+    find_cancel = lambda x: x.accepted and x.state == states.CANCELLED
 
     if list(filter(find_error, task_ex.executions)):
         return states.ERROR
+    elif list(filter(find_cancel, task_ex.executions)):
+        return states.CANCELLED
     else:
         return states.SUCCESS
 
@@ -85,7 +86,7 @@ def _get_with_item_indices(exs):
     return sorted(set([ex.runtime_context['index'] for ex in exs]))
 
 
-def _get_accepted_act_exs(task_ex):
+def _get_accepted_executions(task_ex):
     # Choose only if not accepted but completed.
     return list(
         filter(
@@ -95,7 +96,7 @@ def _get_accepted_act_exs(task_ex):
     )
 
 
-def _get_unaccepted_act_exs(task_ex):
+def _get_unaccepted_executions(task_ex):
     # Choose only if not accepted but completed.
     return list(
         filter(
@@ -106,11 +107,14 @@ def _get_unaccepted_act_exs(task_ex):
 
 
 def get_indices_for_loop(task_ex):
-    capacity = _get_context(task_ex)[_CAPACITY]
+    # TODO(rakhmerov): For now we assume that capacity is unlimited.
+    # TODO(rakhmerov): We need to re-implement 'concurrency' completely.
+    # capacity = _get_context(task_ex)[_CAPACITY]
+    capacity = get_concurrency(task_ex)
     count = get_count(task_ex)
 
-    accepted = _get_with_item_indices(_get_accepted_act_exs(task_ex))
-    unaccepted = _get_with_item_indices(_get_unaccepted_act_exs(task_ex))
+    accepted = _get_with_item_indices(_get_accepted_executions(task_ex))
+    unaccepted = _get_with_item_indices(_get_unaccepted_executions(task_ex))
     candidates = sorted(list(set(unaccepted) - set(accepted)))
 
     if candidates:

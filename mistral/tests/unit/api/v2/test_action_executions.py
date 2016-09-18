@@ -25,7 +25,7 @@ import oslo_messaging
 
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
-from mistral.engine.rpc import rpc
+from mistral.engine.rpc_backend import rpc
 from mistral import exceptions as exc
 from mistral.tests.unit.api import base
 from mistral.workflow import states
@@ -169,6 +169,10 @@ class TestActionExecutionsController(base.APITest):
 
         self.assertEqual(200, resp.status_int)
         self.assertDictEqual(ACTION_EX, resp.json)
+
+    def test_basic_get(self):
+        resp = self.app.get('/v2/action_executions/')
+        self.assertEqual(200, resp.status_int)
 
     @mock.patch.object(db_api, 'get_action_execution', MOCK_NOT_FOUND)
     def test_get_not_found(self):

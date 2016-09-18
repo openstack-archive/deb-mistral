@@ -73,10 +73,12 @@ class WorkflowTestsV2(base.TestCase):
             delimiter='&'
         )
 
+        # NOTE: 'id' gets included into sort keys automatically with 'desc'
+        # sorting to avoid pagination looping.
         expected_sub_dict = {
             'limit': 1,
-            'sort_keys': 'name',
-            'sort_dirs': 'desc'
+            'sort_keys': 'name,id',
+            'sort_dirs': 'desc,asc'
         }
 
         self.assertDictContainsSubset(expected_sub_dict, param_dict)
@@ -270,7 +272,7 @@ class WorkflowTestsV2(base.TestCase):
             )
 
             self.assertIn(
-                "Can't delete workflow that has triggers associated",
+                "Can't delete workflow that has cron triggers associated",
                 exception.resp_body['faultstring']
             )
         finally:

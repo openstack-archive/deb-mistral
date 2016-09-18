@@ -17,7 +17,7 @@ from oslo_config import cfg
 
 from mistral.db.v2 import api as db_api
 from mistral.engine import default_executor
-from mistral.engine.rpc import rpc
+from mistral.engine.rpc_backend import rpc
 from mistral.services import workbooks as wb_service
 from mistral.tests.unit.engine import base
 
@@ -78,7 +78,7 @@ workflows:
 
 
 def _run_at_target(action_ex_id, action_class_str, attributes,
-                   action_params, target=None, async=True):
+                   action_params, target=None, async=True, safe_rerun=False):
     # We'll just call executor directly for testing purposes.
     executor = default_executor.DefaultExecutor(rpc.get_engine_client())
 
@@ -86,7 +86,8 @@ def _run_at_target(action_ex_id, action_class_str, attributes,
         action_ex_id,
         action_class_str,
         attributes,
-        action_params
+        action_params,
+        safe_rerun
     )
 
 
@@ -139,7 +140,7 @@ class EnvironmentTest(base.EngineTestCase):
         self.assertDictEqual(wf1_ex.input, expected_wf1_input)
 
         # Wait till workflow 'wf1' is completed.
-        self.await_execution_success(wf1_ex.id)
+        self.await_workflow_success(wf1_ex.id)
 
         wf1_ex = db_api.get_workflow_execution(wf1_ex.id)
 
@@ -148,7 +149,7 @@ class EnvironmentTest(base.EngineTestCase):
         self.assertDictEqual(wf1_ex.output, expected_wf1_output)
 
         # Wait till workflow 'wf2' is completed.
-        self.await_execution_success(wf2_ex.id)
+        self.await_workflow_success(wf2_ex.id)
 
         wf2_ex = db_api.get_workflow_execution(wf2_ex.id)
 
@@ -165,14 +166,15 @@ class EnvironmentTest(base.EngineTestCase):
         self._assert_single_item(wf1_task_execs, name='task2')
 
         for t_ex in wf1_task_execs:
-            a_ex = t_ex.executions[0]
+            a_ex = t_ex.action_executions[0]
 
             rpc.ExecutorClient.run_action.assert_any_call(
                 a_ex.id,
                 'mistral.actions.std_actions.EchoAction',
                 {},
                 a_ex.input,
-                TARGET
+                TARGET,
+                safe_rerun=False
             )
 
     def test_subworkflow_env_task_input(self):

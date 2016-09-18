@@ -23,8 +23,8 @@ from wsme import types as wtypes
 import wsmeext.pecan as wsme_pecan
 
 from mistral.api import access_control as acl
-from mistral.api.controllers import resource
 from mistral.api.controllers.v2 import member
+from mistral.api.controllers.v2 import resources
 from mistral.api.controllers.v2 import types
 from mistral.api.controllers.v2 import validation
 from mistral.api.hooks import content_type as ct_hook
@@ -32,87 +32,12 @@ from mistral import context
 from mistral.db.v2 import api as db_api
 from mistral import exceptions as exc
 from mistral.services import workflows
+from mistral.utils import filter_utils
 from mistral.utils import rest_utils
 from mistral.workbook import parser as spec_parser
 
 
 LOG = logging.getLogger(__name__)
-SCOPE_TYPES = wtypes.Enum(str, 'private', 'public')
-
-
-class Workflow(resource.Resource):
-    """Workflow resource."""
-
-    id = wtypes.text
-    name = wtypes.text
-    input = wtypes.text
-
-    definition = wtypes.text
-    "Workflow definition in Mistral v2 DSL"
-    tags = [wtypes.text]
-    scope = SCOPE_TYPES
-    "'private' or 'public'"
-    project_id = wtypes.text
-
-    created_at = wtypes.text
-    updated_at = wtypes.text
-
-    @classmethod
-    def sample(cls):
-        return cls(id='123e4567-e89b-12d3-a456-426655440000',
-                   name='flow',
-                   input='param1, param2',
-                   definition='HERE GOES'
-                        'WORKFLOW DEFINITION IN MISTRAL DSL v2',
-                   tags=['large', 'expensive'],
-                   scope='private',
-                   project_id='a7eb669e9819420ea4bd1453e672c0a7',
-                   created_at='1970-01-01T00:00:00.000000',
-                   updated_at='1970-01-01T00:00:00.000000')
-
-    @classmethod
-    def from_dict(cls, d):
-        e = cls()
-        input_list = []
-
-        for key, val in d.items():
-            if hasattr(e, key):
-                setattr(e, key, val)
-
-        if 'spec' in d:
-            input = d.get('spec', {}).get('input', [])
-            for param in input:
-                if isinstance(param, dict):
-                    for k, v in param.items():
-                        input_list.append("%s=%s" % (k, v))
-                else:
-                    input_list.append(param)
-
-            setattr(e, 'input', ", ".join(input_list) if input_list else '')
-
-        return e
-
-
-class Workflows(resource.ResourceList):
-    """A collection of workflows."""
-
-    workflows = [Workflow]
-
-    def __init__(self, **kwargs):
-        self._type = 'workflows'
-
-        super(Workflows, self).__init__(**kwargs)
-
-    @classmethod
-    def sample(cls):
-        workflows_sample = cls()
-        workflows_sample.workflows = [Workflow.sample()]
-        workflows_sample.next = ("http://localhost:8989/v2/workflows?"
-                                 "sort_keys=id,name&"
-                                 "sort_dirs=asc,desc&limit=10&"
-                                 "marker=123e4567-e89b-12d3-a456-426655440000")
-
-        return workflows_sample
 
 
 class WorkflowsController(rest.RestController, hooks.HookController):
@@ -151,15 +76,16 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         )
 
     @rest_utils.wrap_wsme_controller_exception
-    @wsme_pecan.wsexpose(Workflow, wtypes.text)
+    @wsme_pecan.wsexpose(resources.Workflow, wtypes.text)
     def get(self, identifier):
         """Return the named workflow."""
         acl.enforce('workflows:get', context.ctx())
+
         LOG.info("Fetch workflow [identifier=%s]" % identifier)
 
         db_model = db_api.get_workflow_definition(identifier)
 
-        return Workflow.from_dict(db_model.to_dict())
+        return resources.Workflow.from_dict(db_model.to_dict())
 
     @rest_utils.wrap_pecan_controller_exception
     @pecan.expose(content_type="text/plain")
@@ -173,13 +99,14 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         case they all will be updated.
         """
         acl.enforce('workflows:update', context.ctx())
+
         definition = pecan.request.text
         scope = pecan.request.GET.get('scope', 'private')
 
-        if scope not in SCOPE_TYPES.values:
+        if scope not in resources.SCOPE_TYPES.values:
             raise exc.InvalidModelException(
                 "Scope must be one of the following: %s; actual: "
-                "%s" % (SCOPE_TYPES.values, scope)
+                "%s" % (resources.SCOPE_TYPES.values, scope)
             )
 
         LOG.info("Update workflow(s) [definition=%s]" % definition)
@@ -191,10 +118,12 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         )
 
         models_dicts = [db_wf.to_dict() for db_wf in db_wfs]
-        workflow_list = [Workflow.from_dict(wf) for wf in models_dicts]
+        workflow_list = [
+            resources.Workflow.from_dict(wf) for wf in models_dicts
+        ]
 
         return (workflow_list[0].to_json() if identifier
-                else Workflows(workflows=workflow_list).to_json())
+                else resources.Workflows(workflows=workflow_list).to_json())
 
     @rest_utils.wrap_pecan_controller_exception
     @pecan.expose(content_type="text/plain")
@@ -205,14 +134,15 @@ class WorkflowsController(rest.RestController, hooks.HookController):
             of multiple workflows. In this case they all will be created.
         """
         acl.enforce('workflows:create', context.ctx())
+
         definition = pecan.request.text
         scope = pecan.request.GET.get('scope', 'private')
         pecan.response.status = 201
 
-        if scope not in SCOPE_TYPES.values:
+        if scope not in resources.SCOPE_TYPES.values:
             raise exc.InvalidModelException(
                 "Scope must be one of the following: %s; actual: "
-                "%s" % (SCOPE_TYPES.values, scope)
+                "%s" % (resources.SCOPE_TYPES.values, scope)
             )
 
         LOG.info("Create workflow(s) [definition=%s]" % definition)
@@ -220,9 +150,11 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         db_wfs = workflows.create_workflows(definition, scope=scope)
         models_dicts = [db_wf.to_dict() for db_wf in db_wfs]
 
-        workflow_list = [Workflow.from_dict(wf) for wf in models_dicts]
+        workflow_list = [
+            resources.Workflow.from_dict(wf) for wf in models_dicts
+        ]
 
-        return Workflows(workflows=workflow_list).to_json()
+        return resources.Workflows(workflows=workflow_list).to_json()
 
     @rest_utils.wrap_wsme_controller_exception
     @wsme_pecan.wsexpose(None, wtypes.text, status_code=204)
@@ -235,14 +167,14 @@ class WorkflowsController(rest.RestController, hooks.HookController):
             db_api.delete_workflow_definition(identifier)
 
     @rest_utils.wrap_wsme_controller_exception
-    @wsme_pecan.wsexpose(Workflows, types.uuid, int, types.uniquelist,
-                         types.list, types.uniquelist, wtypes.text,
-                         wtypes.text, wtypes.text, wtypes.text,
-                         types.uniquelist, SCOPE_TYPES, types.uuid,
-                         wtypes.text, wtypes.text)
+    @wsme_pecan.wsexpose(resources.Workflows, types.uuid, int,
+                         types.uniquelist, types.list, types.uniquelist,
+                         wtypes.text, wtypes.text, wtypes.text, wtypes.text,
+                         resources.SCOPE_TYPES, types.uuid, wtypes.text,
+                         wtypes.text)
     def get_all(self, marker=None, limit=None, sort_keys='created_at',
                 sort_dirs='asc', fields='', name=None, input=None,
-                definition=None, tag=None, tags=None, scope=None,
+                definition=None, tags=None, scope=None,
                 project_id=None, created_at=None, updated_at=None):
         """Return a list of workflows.
 
@@ -263,9 +195,6 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         :param input: Optional. Keep only resources with a specific input.
         :param definition: Optional. Keep only resources with a specific
                            definition.
-        :param tag: Optional. Keep only resources with a specific tag. If it is
-                    used with 'tags', it will be appended to the list of
-                    matching tags.
         :param tags: Optional. Keep only resources containing specific tags.
         :param scope: Optional. Keep only resources with a specific scope.
         :param project_id: Optional. The same as the requester project_id
@@ -277,13 +206,7 @@ class WorkflowsController(rest.RestController, hooks.HookController):
         """
         acl.enforce('workflows:list', context.ctx())
 
-        if tag is not None:
-            if tags is None:
-                tags = [tag]
-            else:
-                tags.append(tag)
-
-        filters = rest_utils.filters_to_dict(
+        filters = filter_utils.create_filters_from_request_params(
             created_at=created_at,
             name=name,
             scope=scope,
@@ -299,11 +222,10 @@ class WorkflowsController(rest.RestController, hooks.HookController):
                  sort_keys, sort_dirs, fields, filters)
 
         return rest_utils.get_all(
-            Workflows,
-            Workflow,
+            resources.Workflows,
+            resources.Workflow,
             db_api.get_workflow_definitions,
             db_api.get_workflow_definition_by_id,
-            resource_function=None,
             marker=marker,
             limit=limit,
             sort_keys=sort_keys,

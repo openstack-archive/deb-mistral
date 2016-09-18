@@ -31,17 +31,21 @@ class WithItemsTest(base.BaseTest):
     def test_get_indices(self):
         # Task execution for running 6 items with concurrency=3.
         task_ex = models.TaskExecution(
+            spec={
+                'action': 'myaction'
+            },
             runtime_context={
                 'with_items_context': {
                     'capacity': 3,
                     'count': 6
                 }
             },
-            executions=[]
+            action_executions=[],
+            workflow_executions=[]
         )
 
         # Set 3 items: 2 success and 1 error unaccepted.
-        task_ex.executions += [
+        task_ex.action_executions += [
             self.get_action_ex(True, states.SUCCESS, 0),
             self.get_action_ex(True, states.SUCCESS, 1),
             self.get_action_ex(False, states.ERROR, 2)
@@ -50,4 +54,7 @@ class WithItemsTest(base.BaseTest):
         # Then call get_indices and expect [2, 3, 4].
         indices = with_items.get_indices_for_loop(task_ex)
 
-        self.assertListEqual([2, 3, 4], indices)
+        # TODO(rakhmerov): Restore concurrency support.
+        # With disabled 'concurrency' support we expect indices 2,3,4,5
+        # because overall count is 6 and two indices were already processed.
+        self.assertListEqual([2, 3, 4, 5], indices)

@@ -13,9 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import keystoneauth1.identity.generic as auth_plugins
+from keystoneauth1 import session as ks_session
 from keystoneclient.v3 import client as ks_client
-from keystoneclient.v3.endpoints import Endpoint
+from keystoneclient.v3 import endpoints as enp
 from oslo_config import cfg
+from oslo_utils import timeutils
 
 from mistral import context
 
@@ -27,7 +30,7 @@ def client():
     auth_url = ctx.auth_uri
 
     cl = ks_client.Client(
-        username=ctx.user_name,
+        user_id=ctx.user_id,
         token=ctx.auth_token,
         tenant_id=ctx.project_id,
         auth_url=auth_url
@@ -71,7 +74,20 @@ def get_endpoint_for_project(service_name=None, service_type=None):
     ctx = context.ctx()
 
     token = ctx.auth_token
-    response = client().tokens.get_token_data(token, include_catalog=True)
+
+    if (ctx.is_trust_scoped and is_token_trust_scoped(token)):
+        if ctx.trust_id is None:
+            raise Exception(
+                "'trust_id' must be provided in the admin context."
+            )
+
+        trust_client = client_for_trusts(ctx.trust_id)
+        response = trust_client.tokens.get_token_data(
+            token,
+            include_catalog=True
+        )
+    else:
+        response = client().tokens.get_token_data(token, include_catalog=True)
 
     endpoints = select_service_endpoints(
         service_name,
@@ -103,7 +119,7 @@ def select_service_endpoints(service_name, service_type, services):
 
         for endpoint in catalog["endpoints"]:
             if endpoint["interface"] == 'public':
-                endpoints.append(Endpoint(None, endpoint, loaded=True))
+                endpoints.append(enp.Endpoint(None, endpoint, loaded=True))
 
     return endpoints
 
@@ -130,3 +146,26 @@ def is_token_trust_scoped(auth_token):
     token_info = keystone_client.tokens.validate(auth_token)
 
     return 'OS-TRUST:trust' in token_info
+
+
+def get_admin_session():
+    """Returns a keystone session from Mistral's service credentials."""
+
+    auth = auth_plugins.Password(
+        CONF.keystone_authtoken.auth_uri,
+        username=CONF.keystone_authtoken.admin_user,
+        password=CONF.keystone_authtoken.admin_password,
+        project_name=CONF.keystone_authtoken.admin_tenant_name,
+        # NOTE(jaosorior): Once mistral supports keystone v3 properly, we can
+        # fetch the following values from the configuration.
+        user_domain_name='Default',
+        project_domain_name='Default')
+
+    return ks_session.Session(auth=auth)
+
+
+def will_expire_soon(expires_at):
+    stale_duration = CONF.expiration_token_duration
+    assert stale_duration, "expiration_token_duration must be specified"
+    expires = timeutils.parse_isotime(expires_at)
+    return timeutils.is_soon(expires, stale_duration)

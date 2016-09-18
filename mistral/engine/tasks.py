@@ -28,11 +28,9 @@ from mistral import exceptions as exc
 from mistral import expressions as expr
 from mistral import utils
 from mistral.utils import wf_trace
-from mistral.workbook import parser as spec_parser
 from mistral.workflow import base as wf_base
 from mistral.workflow import data_flow
 from mistral.workflow import states
-from mistral.workflow import utils as wf_utils
 from mistral.workflow import with_items
 
 
@@ -47,14 +45,23 @@ class Task(object):
     Mistral engine or its components in order to manipulate with tasks.
     """
 
-    def __init__(self, wf_ex, task_spec, ctx, task_ex=None):
+    @profiler.trace('task-create')
+    def __init__(self, wf_ex, wf_spec, task_spec, ctx, task_ex=None,
+                 unique_key=None):
         self.wf_ex = wf_ex
         self.task_spec = task_spec
         self.ctx = ctx
         self.task_ex = task_ex
-        self.wf_spec = spec_parser.get_workflow_spec(wf_ex.spec)
+        self.wf_spec = wf_spec
+        self.unique_key = unique_key
         self.waiting = False
         self.reset_flag = False
+
+    def is_completed(self):
+        return self.task_ex and states.is_completed(self.task_ex.state)
+
+    def is_waiting(self):
+        return self.waiting
 
     @abc.abstractmethod
     def on_action_complete(self, action_ex):
@@ -73,14 +80,12 @@ class Task(object):
     def defer(self):
         """Defers task.
 
-        This methods finds task execution or creates new and puts task
-        to a waiting state.
+        This method puts task to a waiting state.
         """
-
         if not self.task_ex:
-            t_execs = wf_utils.find_task_executions_by_spec(
-                self.wf_ex,
-                self.task_spec
+            t_execs = db_api.get_task_executions(
+                workflow_execution_id=self.wf_ex.id,
+                name=self.task_spec.get_name()
             )
 
             self.task_ex = t_execs[0] if t_execs else None
@@ -88,7 +93,8 @@ class Task(object):
         if not self.task_ex:
             self._create_task_execution()
 
-        self.set_state(states.WAITING, 'Task execution is deferred.')
+        if self.task_ex:
+            self.set_state(states.WAITING, 'Task is deferred.')
 
         self.waiting = True
 
@@ -106,11 +112,17 @@ class Task(object):
 
         assert self.task_ex
 
-        wf_trace.info(
-            self.task_ex.workflow_execution,
-            "Task execution '%s' [%s -> %s]: %s" %
-            (self.task_ex.id, self.task_ex.state, state, state_info)
-        )
+        if (self.task_ex.state != state or
+                self.task_ex.state_info != state_info):
+            wf_trace.info(
+                self.task_ex.workflow_execution,
+                "Task '%s' (%s) [%s -> %s, msg=%s]" %
+                (self.task_ex.name,
+                 self.task_ex.id,
+                 self.task_ex.state,
+                 state,
+                 state_info)
+            )
 
         self.task_ex.state = state
         self.task_ex.state_info = state_info
@@ -142,7 +154,7 @@ class Task(object):
 
         if not self.task_spec.get_keep_result():
             # Destroy task result.
-            for ex in self.task_ex.executions:
+            for ex in self.task_ex.action_executions:
                 if hasattr(ex, 'output'):
                     ex.output = {}
 
@@ -160,7 +172,7 @@ class Task(object):
         wf_ctrl = wf_base.get_controller(self.wf_ex, self.wf_spec)
 
         # Calculate commands to process next.
-        cmds = wf_ctrl.continue_workflow()
+        cmds = wf_ctrl.continue_workflow(self.task_ex)
 
         # Mark task as processed after all decisions have been made
         # upon its completion.
@@ -181,22 +193,38 @@ class Task(object):
             p.after_task_complete(self.task_ex, self.task_spec)
 
     def _create_task_execution(self, state=states.RUNNING):
-        self.task_ex = db_api.create_task_execution({
+        values = {
+            'id': utils.generate_unicode_uuid(),
             'name': self.task_spec.get_name(),
             'workflow_execution_id': self.wf_ex.id,
             'workflow_name': self.wf_ex.workflow_name,
             'workflow_id': self.wf_ex.workflow_id,
             'state': state,
             'spec': self.task_spec.to_dict(),
+            'unique_key': self.unique_key,
             'in_context': self.ctx,
             'published': {},
             'runtime_context': {},
             'project_id': self.wf_ex.project_id
-        })
+        }
+
+        db_api.insert_or_ignore_task_execution(values)
+
+        # Since 'insert_or_ignore' cannot return a valid count of updated
+        # rows the only reliable way to check if insert operation has created
+        # an object is try to load this object by just generated uuid.
+        task_ex = db_api.load_task_execution(values['id'])
+
+        if not task_ex:
+            return False
+
+        self.task_ex = task_ex
 
         # Add to collection explicitly so that it's in a proper
         # state within the current session.
         self.wf_ex.task_executions.append(self.task_ex)
+
+        return True
 
     def _get_action_defaults(self):
         action_name = self.task_spec.get_action_name()
@@ -215,7 +243,7 @@ class RegularTask(Task):
     Takes care of processing regular tasks with one action.
     """
 
-    @profiler.trace('task-on-action-complete')
+    @profiler.trace('regular-task-on-action-complete')
     def on_action_complete(self, action_ex):
         state = action_ex.state
         # TODO(rakhmerov): Here we can define more informative messages
@@ -226,9 +254,6 @@ class RegularTask(Task):
 
         self.complete(state, state_info)
 
-    def is_completed(self):
-        return self.task_ex and states.is_completed(self.task_ex.state)
-
     @profiler.trace('task-run')
     def run(self):
         if not self.task_ex:
@@ -237,20 +262,12 @@ class RegularTask(Task):
             self._run_existing()
 
     def _run_new(self):
-        # NOTE(xylan): Need to think how to get rid of this weird judgment
-        # to keep it more consistent with the function name.
-        self.task_ex = wf_utils.find_task_execution_with_state(
-            self.wf_ex,
-            self.task_spec,
-            states.WAITING
-        )
+        if not self._create_task_execution():
+            # Task with the same unique key has already been created.
+            return
 
-        if self.task_ex:
-            self.set_state(states.RUNNING, None)
-
-            self.task_ex.in_context = self.ctx
-        else:
-            self._create_task_execution()
+        if self.waiting:
+            return
 
         LOG.debug(
             'Starting task [workflow=%s, task_spec=%s, init_state=%s]' %
@@ -278,9 +295,17 @@ class RegularTask(Task):
 
         self.set_state(states.RUNNING, None, processed=False)
 
+        self._update_inbound_context()
         self._reset_actions()
-
         self._schedule_actions()
+
+    def _update_inbound_context(self):
+        assert self.task_ex
+
+        wf_ctrl = wf_base.get_controller(self.wf_ex, self.wf_spec)
+
+        self.ctx = wf_ctrl.get_task_inbound_context(self.task_spec)
+        self.task_ex.in_context = self.ctx
 
     def _reset_actions(self):
         """Resets task state.
@@ -291,16 +316,15 @@ class RegularTask(Task):
 
         # Reset state of processed task and related action executions.
         if self.reset_flag:
-            action_exs = self.task_ex.executions
+            execs = self.task_ex.executions
         else:
-            action_exs = db_api.get_action_executions(
-                task_execution_id=self.task_ex.id,
-                state=states.ERROR,
-                accepted=True
+            execs = filter(
+                lambda e: e.accepted and e.state == states.ERROR,
+                self.task_ex.executions
             )
 
-        for action_ex in action_exs:
-            action_ex.accepted = False
+        for ex in execs:
+            ex.accepted = False
 
     def _schedule_actions(self):
         # Regular task schedules just one action.
@@ -311,7 +335,11 @@ class RegularTask(Task):
 
         action.validate_input(input_dict)
 
-        action.schedule(input_dict, target)
+        action.schedule(
+            input_dict,
+            target,
+            safe_rerun=self.task_spec.get_safe_rerun()
+        )
 
     def _get_target(self, input_dict):
         return expr.evaluate_recursively(
@@ -355,30 +383,39 @@ class RegularTask(Task):
         return actions.PythonAction(action_def, task_ex=self.task_ex)
 
 
+# TODO(rakhmerov): Concurrency support is currently dropped since it doesn't
+# fit into non-locking transactional model. It needs to be restored later on.
+# A possible solution should be able to read and write a number of currently
+# running actions atomically which is now impossible w/o locks with JSON
+# field "runtime_context".
 class WithItemsTask(RegularTask):
     """With-items task.
 
     Takes care of processing "with-items" tasks.
     """
 
-    @profiler.trace('task-on-action-complete')
+    @profiler.trace('with-items-task-on-action-complete')
     def on_action_complete(self, action_ex):
         assert self.task_ex
 
-        state = action_ex.state
         # TODO(rakhmerov): Here we can define more informative messages
         # cases when action is successful and when it's not. For example,
         # in state_info we can specify the cause action.
-        state_info = (None if state == states.SUCCESS
-                      else action_ex.output.get('result'))
+        # The use of action_ex.output.get('result') for state_info is not
+        # accurate because there could be action executions that had
+        # failed or was cancelled prior to this action execution.
+        state_info = {
+            states.SUCCESS: None,
+            states.ERROR: 'One or more action executions had failed.',
+            states.CANCELLED: 'One or more action executions was cancelled.'
+        }
 
         with_items.increase_capacity(self.task_ex)
 
         if with_items.is_completed(self.task_ex):
-            self.complete(
-                with_items.get_final_state(self.task_ex),
-                state_info
-            )
+            state = with_items.get_final_state(self.task_ex)
+
+            self.complete(state, state_info[state])
 
             return
 
@@ -399,7 +436,14 @@ class WithItemsTask(RegularTask):
 
             action = self._build_action()
 
-            action.schedule(input_dict, target, index=idx)
+            action.validate_input(input_dict)
+
+            action.schedule(
+                input_dict,
+                target,
+                index=idx,
+                safe_rerun=self.task_spec.get_safe_rerun()
+            )
 
     def _get_with_items_input(self):
         """Calculate input array for separating each action input.

@@ -185,8 +185,8 @@ def create_action_definition(values):
     return IMPL.create_action_definition(values)
 
 
-def update_action_definition(name, values):
-    return IMPL.update_action_definition(name, values)
+def update_action_definition(identifier, values):
+    return IMPL.update_action_definition(identifier, values)
 
 
 def create_or_update_action_definition(name, values):
@@ -199,45 +199,6 @@ def delete_action_definition(name):
 
 def delete_action_definitions(**kwargs):
     return IMPL.delete_action_definitions(**kwargs)
-
-
-# Common executions.
-
-def get_execution(id):
-    return IMPL.get_execution(id)
-
-
-def load_execution(name):
-    """Unlike get_execution this method is allowed to return None."""
-    return IMPL.load_execution(name)
-
-
-def get_executions(**kwargs):
-    return IMPL.get_executions(**kwargs)
-
-
-def ensure_execution_exists(id):
-    return IMPL.ensure_execution_exists(id)
-
-
-def create_execution(values):
-    return IMPL.create_execution(values)
-
-
-def update_execution(id, values):
-    return IMPL.update_execution(id, values)
-
-
-def create_or_update_execution(id, values):
-    return IMPL.create_or_update_execution(id, values)
-
-
-def delete_execution(id):
-    return IMPL.delete_execution(id)
-
-
-def delete_executions(**kwargs):
-    IMPL.delete_executions(**kwargs)
 
 
 # Action executions.
@@ -331,9 +292,9 @@ def get_task_execution(id):
     return IMPL.get_task_execution(id)
 
 
-def load_task_execution(name):
+def load_task_execution(id):
     """Unlike get_task_execution this method is allowed to return None."""
-    return IMPL.load_task_execution(name)
+    return IMPL.load_task_execution(id)
 
 
 def get_task_executions(limit=None, marker=None, sort_keys=['created_at'],
@@ -349,6 +310,10 @@ def get_task_executions(limit=None, marker=None, sort_keys=['created_at'],
 
 def create_task_execution(values):
     return IMPL.create_task_execution(values)
+
+
+def insert_or_ignore_task_execution(values):
+    return IMPL.insert_or_ignore_task_execution(values)
 
 
 def update_task_execution(id, values):
@@ -377,6 +342,10 @@ def create_delayed_call(values):
     return IMPL.create_delayed_call(values)
 
 
+def insert_or_ignore_delayed_call(values):
+    return IMPL.insert_or_ignore_delayed_call(values)
+
+
 def delete_delayed_call(id):
     return IMPL.delete_delayed_call(id)
 
@@ -387,6 +356,14 @@ def update_delayed_call(id, values, query_filter=None):
 
 def get_delayed_call(id):
     return IMPL.get_delayed_call(id)
+
+
+def get_delayed_calls(**kwargs):
+    return IMPL.get_delayed_calls(**kwargs)
+
+
+def delete_delayed_calls(**kwargs):
+    return IMPL.delete_delayed_calls(**kwargs)
 
 
 # Cron triggers.
@@ -505,3 +482,62 @@ def delete_resource_member(resource_id, res_type, member_id):
 
 def delete_resource_members(**kwargs):
     IMPL.delete_resource_members(**kwargs)
+
+
+# Event triggers.
+
+def get_event_trigger(id, insecure=False):
+    return IMPL.get_event_trigger(id, insecure)
+
+
+def get_event_triggers(insecure=False, limit=None, marker=None, sort_keys=None,
+                       sort_dirs=None, fields=None, **kwargs):
+    return IMPL.get_event_triggers(
+        insecure=False,
+        limit=limit,
+        marker=marker,
+        sort_keys=sort_keys,
+        sort_dirs=sort_dirs,
+        fields=fields,
+        **kwargs
+    )
+
+
+def create_event_trigger(values):
+    return IMPL.create_event_trigger(values)
+
+
+def update_event_trigger(id, values):
+    return IMPL.update_event_trigger(id, values)
+
+
+def delete_event_trigger(id):
+    return IMPL.delete_event_trigger(id)
+
+
+def delete_event_triggers(**kwargs):
+    return IMPL.delete_event_triggers(**kwargs)
+
+
+def ensure_event_trigger_exists(id):
+    return IMPL.ensure_event_trigger_exists(id)
+
+
+# Locks.
+
+def create_named_lock(name):
+    return IMPL.create_named_lock(name)
+
+
+def get_named_locks(limit=None, marker=None):
+    return IMPL.get_named_locks(limit=limit, marker=marker)
+
+
+def delete_named_lock(name):
+    return IMPL.delete_named_lock(name)
+
+
+@contextlib.contextmanager
+def named_lock(name):
+    with IMPL.named_lock(name):
+        yield

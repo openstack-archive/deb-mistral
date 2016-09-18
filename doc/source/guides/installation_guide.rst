@@ -18,7 +18,7 @@ The list of needed packages is shown below:
 
 In case of Ubuntu, just run::
 
-    apt-get install python-dev python-setuptools libffi-dev libxslt1-dev libxml2-dev libyaml-dev libssl-dev
+    apt-get install python-dev python-setuptools python-pip libffi-dev libxslt1-dev libxml2-dev libyaml-dev libssl-dev
 
 **NOTE:** **Mistral can be used without authentication at all or it can work with OpenStack.** In case of OpenStack, it works **only on Keystone v3**, make sure **Keystone v3** is installed.
 
@@ -50,6 +50,7 @@ This will install necessary virtual environments and run all the project tests. 
 
 or::
 
+    pip install -r requirements.txt
     python setup.py install
 
 **NOTE**: Differences *pip install -e* and *setup.py install*. **pip install -e** works very similarly to **setup.py install** or the EasyInstall tool, except that it doesn’t actually install anything. Instead, it creates a special .egg-link file in the deployment directory, that links to your project’s source code.

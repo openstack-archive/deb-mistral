@@ -49,7 +49,7 @@ def on_action_complete(action_ex, result):
         return
 
     if task_ex:
-        task_handler.on_action_complete(action_ex)
+        task_handler.schedule_on_action_complete(action_ex)
 
 
 def _build_action(action_ex):
@@ -61,8 +61,8 @@ def _build_action(action_ex):
 
     if action_ex.workflow_name:
         wf_name = action_ex.workflow_name
-        wf_spec = spec_parser.get_workflow_spec(
-            action_ex.task_execution.workflow_execution.spec
+        wf_spec = spec_parser.get_workflow_spec_by_execution_id(
+            action_ex.task_execution.workflow_execution_id
         )
         wf_spec_name = wf_spec.get_name()
 

@@ -29,13 +29,13 @@ import testtools.matchers as ttm
 from mistral import context as auth_context
 from mistral.db.sqlalchemy import base as db_sa_base
 from mistral.db.sqlalchemy import sqlite_lock
-from mistral.db.v2 import api as db_api_v2
+from mistral.db.v2 import api as db_api
 from mistral.services import action_manager
 from mistral.services import security
 from mistral.tests.unit import config as test_config
 from mistral.utils import inspect_utils as i_utils
 from mistral import version
-
+from mistral.workbook import parser as spec_parser
 
 RESOURCES_PATH = 'tests/resources/'
 LOG = logging.getLogger(__name__)
@@ -98,6 +98,11 @@ class FakeHTTPResponse(object):
 
 
 class BaseTest(base.BaseTestCase):
+    def setUp(self):
+        super(BaseTest, self).setUp()
+
+        self.addCleanup(spec_parser.clear_caches)
+
     def assertListEqual(self, l1, l2):
         if tuple(sys.version_info)[0:2] < (2, 7):
             # for python 2.6 compatibility
@@ -197,6 +202,11 @@ class BaseTest(base.BaseTestCase):
     def _sleep(self, seconds):
         time.sleep(seconds)
 
+    def override_config(self, name, override, group=None):
+        """Cleanly override CONF variables."""
+        cfg.CONF.set_override(name, override, group)
+        self.addCleanup(cfg.CONF.clear_override, name, group)
+
 
 class DbTestCase(BaseTest):
     is_heavy_init_called = False
@@ -229,7 +239,7 @@ class DbTestCase(BaseTest):
         cfg.CONF.set_default('max_overflow', -1, group='database')
         cfg.CONF.set_default('max_pool_size', 1000, group='database')
 
-        db_api_v2.setup_db()
+        db_api.setup_db()
 
         action_manager.sync_db()
 
@@ -244,13 +254,17 @@ class DbTestCase(BaseTest):
 
             with mock.patch('mistral.services.security.get_project_id',
                             new=mock.MagicMock(return_value=ctx.project_id)):
-                with db_api_v2.transaction():
-                    db_api_v2.delete_executions()
-                    db_api_v2.delete_workbooks()
-                    db_api_v2.delete_cron_triggers()
-                    db_api_v2.delete_workflow_definitions()
-                    db_api_v2.delete_environments(),
-                    db_api_v2.delete_resource_members()
+                with db_api.transaction():
+                    db_api.delete_event_triggers()
+                    db_api.delete_cron_triggers()
+                    db_api.delete_workflow_executions()
+                    db_api.delete_task_executions()
+                    db_api.delete_action_executions()
+                    db_api.delete_workbooks()
+                    db_api.delete_workflow_definitions()
+                    db_api.delete_environments()
+                    db_api.delete_resource_members()
+                    db_api.delete_delayed_calls()
 
         sqlite_lock.cleanup()
 

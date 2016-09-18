@@ -214,6 +214,9 @@ attributes:
 -  **timeout** - Configures timeout policy. *Optional*.
 -  **retry** - Configures retry policy. *Optional*.
 -  **concurrency** - Configures concurrency policy. *Optional*.
+-  **safe-rerun** - Boolean value allowing to rerun task if executor dies
+   during action execution. If set to 'true' task may be run twice.
+   *Optional*. By default set to 'false'.
 
 Policies
 ''''''''
@@ -663,6 +666,20 @@ anyone. It is also possible to add system actions for specific Mistral
 installation via a special plugin mechanism. Currently, built-in system
 actions are:
 
+std.fail
+''''''''
+
+Fail the current workflow. This action can be used to manually set the workflow
+state to error.
+
+Example:
+
+.. code-block:: yaml
+
+    manual_fail:
+      action: std.fail
+
+
 std.http
 ''''''''
 
@@ -830,7 +847,7 @@ Example:
         - radix: 16
 
       output:
-        uuid: <% task(generate_uuid_task).result %>
+        uuid: <% $.generated_uuid %>
 
       tasks:
         generate_uuid_task:
@@ -843,7 +860,7 @@ Example:
                       return v.toString($.radix);
               });
           publish:
-            generated_uuid: <% $.generate_uuid_task %>
+            generated_uuid: <% task(generate_uuid_task).result %>
 
 Another example for getting the current date and time:
 
@@ -851,7 +868,7 @@ Another example for getting the current date and time:
 
       ---
       version: '2.0'
-      
+
       get_date_workflow:
         description: Get the current date
 
@@ -859,7 +876,7 @@ Another example for getting the current date and time:
 
         output:
           current_date: <% $.current_date %>
-      
+
         tasks:
           get_date_task:
             action: std.javascript

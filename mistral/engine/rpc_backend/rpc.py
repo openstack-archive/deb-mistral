@@ -86,7 +86,7 @@ def get_rpc_server_driver():
     global _IMPL_SERVER
     if not _IMPL_SERVER:
         _IMPL_SERVER = driver.DriverManager(
-            'mistral.engine.rpc',
+            'mistral.engine.rpc_backend',
             '%s_server' % rpc_impl
         ).driver
 
@@ -99,7 +99,7 @@ def get_rpc_client_driver():
     global _IMPL_CLIENT
     if not _IMPL_CLIENT:
         _IMPL_CLIENT = driver.DriverManager(
-            'mistral.engine.rpc',
+            'mistral.engine.rpc_backend',
             '%s_client' % rpc_impl
         ).driver
 
@@ -168,13 +168,14 @@ class EngineServer(object):
         return self._engine.on_task_state_change(task_ex_id, state, state_info)
 
     def on_action_complete(self, rpc_ctx, action_ex_id, result_data,
-                           result_error):
+                           result_error, wf_action):
         """Receives RPC calls to communicate action result to engine.
 
         :param rpc_ctx: RPC request context.
         :param action_ex_id: Action execution id.
         :param result_data: Action result data.
         :param result_error: Action result error.
+        :param wf_action: True if given id points to a workflow execution.
         :return: Action execution.
         """
 
@@ -185,7 +186,7 @@ class EngineServer(object):
             " action_ex_id=%s, result=%s]" % (rpc_ctx, action_ex_id, result)
         )
 
-        return self._engine.on_action_complete(action_ex_id, result)
+        return self._engine.on_action_complete(action_ex_id, result, wf_action)
 
     def pause_workflow(self, rpc_ctx, execution_id):
         """Receives calls over RPC to pause workflows on engine.
@@ -358,7 +359,7 @@ class EngineClient(base.Engine):
         )
 
     @wrap_messaging_exception
-    def on_action_complete(self, action_ex_id, result):
+    def on_action_complete(self, action_ex_id, result, wf_action=False):
         """Conveys action result to Mistral Engine.
 
         This method should be used by clients of Mistral Engine to update
@@ -372,7 +373,11 @@ class EngineClient(base.Engine):
 
         :param action_ex_id: Action execution id.
         :param result: Action execution result.
-        :return: Task.
+        :param wf_action: If True it means that the given id points to
+            a workflow execution rather than action execution. It happens
+            when a nested workflow execution sends its result to a parent
+            workflow.
+        :return: Action(or workflow if wf_action=True) execution object.
         """
 
         return self._client.sync_call(
@@ -380,7 +385,8 @@ class EngineClient(base.Engine):
             'on_action_complete',
             action_ex_id=action_ex_id,
             result_data=result.data,
-            result_error=result.error
+            result_error=result.error,
+            wf_action=wf_action
         )
 
     @wrap_messaging_exception
@@ -411,7 +417,7 @@ class EngineClient(base.Engine):
         :return: Workflow execution.
         """
 
-        return self._client.call(
+        return self._client.sync_call(
             auth_ctx.ctx(),
             'rerun_workflow',
             task_ex_id=task_ex_id,
@@ -480,7 +486,7 @@ class ExecutorServer(object):
         self._executor = executor
 
     def run_action(self, rpc_ctx, action_ex_id, action_class_str,
-                   attributes, params):
+                   attributes, params, safe_rerun):
         """Receives calls over RPC to run action on executor.
 
         :param rpc_ctx: RPC request context dictionary.
@@ -488,6 +494,7 @@ class ExecutorServer(object):
         :param action_class_str: Action class name.
         :param attributes: Action class attributes.
         :param params: Action input parameters.
+        :param safe_rerun: Tells if given action can be safely rerun.
         :return: Action result.
         """
 
@@ -497,11 +504,15 @@ class ExecutorServer(object):
             % (rpc_ctx, action_ex_id, action_class_str, attributes, params)
         )
 
+        redelivered = rpc_ctx.redelivered or False
+
         return self._executor.run_action(
             action_ex_id,
             action_class_str,
             attributes,
-            params
+            params,
+            safe_rerun,
+            redelivered
         )
 
 
@@ -518,7 +529,7 @@ class ExecutorClient(base.Executor):
         self._client = get_rpc_client_driver()(rpc_conf_dict)
 
     def run_action(self, action_ex_id, action_class_str, attributes,
-                   action_params, target=None, async=True):
+                   action_params, target=None, async=True, safe_rerun=False):
         """Sends a request to run action to executor.
 
         :param action_ex_id: Action execution id.
@@ -528,6 +539,8 @@ class ExecutorClient(base.Executor):
         :param target: Target (group of action executors).
         :param async: If True, run action in asynchronous mode (w/o waiting
             for completion).
+        :param safe_rerun: If true, action would be re-run if executor dies
+            during execution.
         :return: Action result.
         """
 
@@ -535,7 +548,8 @@ class ExecutorClient(base.Executor):
             'action_ex_id': action_ex_id,
             'action_class_str': action_class_str,
             'attributes': attributes,
-            'params': action_params
+            'params': action_params,
+            'safe_rerun': safe_rerun
         }
 
         rpc_client_method = (self._client.async_call
@@ -553,3 +567,10 @@ class ExecutorClient(base.Executor):
             wf_utils.Result(data=res['data'], error=res['error'])
             if res else None
         )
+
+
+class EventEngineServer(object):
+    """RPC Event Engine server."""
+
+    def __init__(self, event_engine):
+        self.event_engine = event_engine

@@ -27,7 +27,6 @@ from osprofiler import opts as profiler
 
 from mistral import version
 
-
 # Options under default group.
 launch_opt = cfg.ListOpt(
     'server',
@@ -66,6 +65,18 @@ api_opts = [
         default=False,
         help='Enables the ability to delete action_execution which '
              'has no relationship with workflows.'
+    ),
+    cfg.BoolOpt(
+        'enable_ssl_api',
+        default=False,
+        help='Enable the integrated stand-alone API to service requests'
+             'via HTTPS instead of HTTP.'
+    ),
+    cfg.IntOpt(
+        'api_workers',
+        help='Number of workers for Mistral API service '
+             'default is equal to the number of CPUs available if that can '
+             'be determined, else a default worker count of 1 is returned.'
     )
 ]
 
@@ -77,12 +88,27 @@ rpc_impl_opt = cfg.StrOpt(
          'kombu driver is experimental.'
 )
 
+# TODO(ddeja): This config option is a part of oslo RPCClient
+# It would be the best to not register it twice, rather use RPCClient somehow
+rpc_response_timeout_opt = cfg.IntOpt(
+    'rpc_response_timeout',
+    default=60,
+    help='Seconds to wait for a response from a call.'
+)
+
 os_endpoint_type = cfg.StrOpt(
     'os-actions-endpoint-type',
     default=os.environ.get('OS_ACTIONS_ENDPOINT_TYPE', 'publicURL'),
     choices=['publicURL', 'adminURL', 'internalURL'],
     help='Type of endpoint in identity service catalog to use for'
          ' communication with OpenStack services.'
+)
+
+expiration_token_duration = cfg.IntOpt(
+    'expiration_token_duration',
+    default=30,
+    help='Window of seconds to determine whether the given token is about'
+         ' to expire.'
 )
 
 pecan_opts = [
@@ -152,6 +178,21 @@ executor_opts = [
     )
 ]
 
+event_engine_opts = [
+    cfg.StrOpt(
+        'host',
+        default='0.0.0.0',
+        help='Name of the event engine node. This can be an opaque '
+             'identifier. It is not necessarily a hostname, '
+             'FQDN, or IP address.'
+    ),
+    cfg.StrOpt(
+        'topic',
+        default='mistral_event_engine',
+        help='The message topic that the event engine listens on.'
+    ),
+]
+
 execution_expiration_policy_opts = [
     cfg.IntOpt(
         'evaluation_interval',
@@ -191,7 +232,6 @@ profiler_opts.append(
     )
 )
 
-
 keycloak_oidc_opts = [
     cfg.StrOpt(
         'auth_url',
@@ -204,12 +244,12 @@ keycloak_oidc_opts = [
     )
 ]
 
-
 CONF = cfg.CONF
 
 API_GROUP = 'api'
 ENGINE_GROUP = 'engine'
 EXECUTOR_GROUP = 'executor'
+EVENT_ENGINE_GROUP = 'event_engine'
 PECAN_GROUP = 'pecan'
 COORDINATION_GROUP = 'coordination'
 EXECUTION_EXPIRATION_POLICY_GROUP = 'execution_expiration_policy'
@@ -221,18 +261,20 @@ CONF.register_opt(auth_type_opt)
 
 CONF.register_opts(api_opts, group=API_GROUP)
 CONF.register_opts(engine_opts, group=ENGINE_GROUP)
-CONF.register_opts(pecan_opts, group=PECAN_GROUP)
 CONF.register_opts(executor_opts, group=EXECUTOR_GROUP)
 CONF.register_opts(
     execution_expiration_policy_opts,
     group=EXECUTION_EXPIRATION_POLICY_GROUP
 )
+CONF.register_opts(event_engine_opts, group=EVENT_ENGINE_GROUP)
+CONF.register_opts(pecan_opts, group=PECAN_GROUP)
 CONF.register_opts(coordination_opts, group=COORDINATION_GROUP)
 CONF.register_opts(profiler_opts, group=PROFILER_GROUP)
 CONF.register_opt(rpc_impl_opt)
+CONF.register_opt(rpc_response_timeout_opt)
 CONF.register_opts(keycloak_oidc_opts, group=KEYCLOAK_OIDC_GROUP)
 CONF.register_opt(os_endpoint_type)
-
+CONF.register_opt(expiration_token_duration)
 
 CLI_OPTS = [
     use_debugger_opt,
@@ -241,7 +283,8 @@ CLI_OPTS = [
 
 default_group_opts = itertools.chain(
     CLI_OPTS,
-    [wf_trace_log_name_opt, auth_type_opt, rpc_impl_opt, os_endpoint_type]
+    [wf_trace_log_name_opt, auth_type_opt, rpc_impl_opt, os_endpoint_type,
+     rpc_response_timeout_opt, expiration_token_duration]
 )
 
 CONF.register_cli_opts(CLI_OPTS)
@@ -265,6 +308,7 @@ def list_opts():
         (API_GROUP, api_opts),
         (ENGINE_GROUP, engine_opts),
         (EXECUTOR_GROUP, executor_opts),
+        (EVENT_ENGINE_GROUP, event_engine_opts),
         (PECAN_GROUP, pecan_opts),
         (COORDINATION_GROUP, coordination_opts),
         (EXECUTION_EXPIRATION_POLICY_GROUP, execution_expiration_policy_opts),

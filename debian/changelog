@@ -1,3 +1,11 @@
+mistral (3.0.0~b3-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Fixed (build-)depends for this release.
+  * Using OpenStack's Gerrit as VCS URLs.
+
+ -- Thomas Goirand <zigo@debian.org>  Sun, 18 Sep 2016 23:37:58 +0200
+
 mistral (3.0.0~b2-1) experimental; urgency=medium
 
   * New upstream release.

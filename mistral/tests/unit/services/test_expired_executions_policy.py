@@ -1,5 +1,6 @@
 # Copyright 2015 - Alcatel-lucent, Inc.
 # Copyright 2015 - StackStorm, Inc.
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -22,8 +23,9 @@ from mistral.tests.unit import base
 from oslo_config import cfg
 
 
-def _load_executions():
+def _create_workflow_executions():
     time_now = datetime.datetime.now()
+
     wf_execs = [
         {
             'id': '123',
@@ -58,6 +60,38 @@ def _load_executions():
             'state': "SUCCESS",
         },
         {
+            'id': 'abc',
+            'name': 'cancelled_expired',
+            'created_at': time_now - datetime.timedelta(minutes=60),
+            'updated_at': time_now - datetime.timedelta(minutes=59),
+            'workflow_name': 'test_exec',
+            'state': "CANCELLED",
+        },
+        {
+            'id': 'def',
+            'name': 'cancelled_not_expired',
+            'created_at': time_now - datetime.timedelta(minutes=15),
+            'updated_at': time_now - datetime.timedelta(minutes=5),
+            'workflow_name': 'test_exec',
+            'state': "CANCELLED",
+        }
+    ]
+
+    for wf_exec in wf_execs:
+        db_api.create_workflow_execution(wf_exec)
+
+    # Create a nested workflow execution.
+
+    db_api.create_task_execution(
+        {
+            'id': '789',
+            'workflow_execution_id': '987',
+            'name': 'my_task'
+        }
+    )
+
+    db_api.create_workflow_execution(
+        {
             'id': '654',
             'name': 'expired but not a parent',
             'created_at': time_now - datetime.timedelta(days=15),
@@ -66,9 +100,7 @@ def _load_executions():
             'state': "SUCCESS",
             'task_execution_id': '789'
         }
-    ]
-    for wf_exec in wf_execs:
-        db_api.create_workflow_execution(wf_exec)
+    )
 
 
 def _switch_context(project_id, is_admin):
@@ -92,22 +124,22 @@ class ExpirationPolicyTest(base.DbTestCase):
         # we want to load the executions with other project_id.
         _switch_context('non_admin_project', False)
 
-        _load_executions()
+        _create_workflow_executions()
 
         now = datetime.datetime.now()
 
         # This execution has a parent wf and testing that we are
         # querying only for parent wfs.
-        exec_child = db_api.get_execution('654')
+        exec_child = db_api.get_workflow_execution('654')
 
         self.assertEqual('789', exec_child.task_execution_id)
 
         # Call for all expired wfs execs.
         execs = db_api.get_expired_executions(now)
 
-        # Should be only 3, the RUNNING execution shouldn't return,
+        # Should be only 5, the RUNNING execution shouldn't return,
         # so the child wf (that has parent task id).
-        self.assertEqual(3, len(execs))
+        self.assertEqual(5, len(execs))
 
         # Switch context to Admin since expiration policy running as Admin.
         _switch_context(None, True)
@@ -118,8 +150,8 @@ class ExpirationPolicyTest(base.DbTestCase):
         # Only non_expired available (update_at < older_than).
         execs = db_api.get_expired_executions(now)
 
-        self.assertEqual(1, len(execs))
-        self.assertEqual('987', execs[0].id)
+        self.assertEqual(2, len(execs))
+        self.assertListEqual(['987', 'def'], sorted([ex.id for ex in execs]))
 
         _set_expiration_policy_config(1, 5)
         expiration_policy.run_execution_expiration_policy(self, ctx)

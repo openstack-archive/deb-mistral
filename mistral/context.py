@@ -85,6 +85,9 @@ class MistralContext(BaseContext):
         "roles",
         "is_admin",
         "is_trust_scoped",
+        "redelivered",
+        "expires_at",
+        "trust_id",
     ])
 
     def __repr__(self):
@@ -126,19 +129,55 @@ def spawn(thread_description, func, *args, **kwargs):
                    None, func, *args, **kwargs)
 
 
-def context_from_headers(headers):
+def context_from_headers_and_env(headers, env):
+    params = _extract_auth_params_from_headers(headers)
+    auth_cacert = params['auth_cacert']
+    auth_token = params['auth_token']
+    auth_uri = params['auth_uri']
+    project_id = params['project_id']
+    user_id = params['user_id']
+    user_name = params['user_name']
+
     return MistralContext(
-        auth_uri=CONF.keystone_authtoken.auth_uri,
-        auth_cacert=CONF.keystone_authtoken.cafile,
-        user_id=headers.get('X-User-Id'),
-        project_id=headers.get('X-Project-Id'),
-        auth_token=headers.get('X-Auth-Token'),
+        auth_uri=auth_uri,
+        auth_cacert=auth_cacert,
+        user_id=user_id,
+        project_id=project_id,
+        auth_token=auth_token,
         service_catalog=headers.get('X-Service-Catalog'),
-        user_name=headers.get('X-User-Name'),
+        user_name=user_name,
         project_name=headers.get('X-Project-Name'),
         roles=headers.get('X-Roles', "").split(","),
         is_trust_scoped=False,
+        expires_at=env.get('keystone.token_info')['token']['expires_at'],
     )
+
+
+def _extract_auth_params_from_headers(headers):
+    if headers.get("X-Target-Auth-Uri"):
+        params = {
+            # TODO(akovi): Target cert not handled yet
+            'auth_cacert': None,
+            'auth_token': headers.get('X-Target-Auth-Token'),
+            'auth_uri': headers.get('X-Target-Auth-Uri'),
+            'project_id': headers.get('X-Target-Project-Id'),
+            'user_id': headers.get('X-Target-User-Id'),
+            'user_name': headers.get('X-Target-User-Name'),
+        }
+        if not params['auth_token']:
+            raise (exc.MistralException(
+                'Target auth URI (X-Target-Auth-Uri) target auth token '
+                '(X-Target-Auth-Token) must be present'))
+    else:
+        params = {
+            'auth_cacert': CONF.keystone_authtoken.cafile,
+            'auth_token': headers.get('X-Auth-Token'),
+            'auth_uri': CONF.keystone_authtoken.auth_uri,
+            'project_id': headers.get('X-Project-Id'),
+            'user_id': headers.get('X-User-Id'),
+            'user_name': headers.get('X-User-Name'),
+        }
+    return params
 
 
 def context_from_config():
@@ -283,7 +322,10 @@ def authenticate_with_keycloak(req):
 
 class ContextHook(hooks.PecanHook):
     def before(self, state):
-        set_ctx(context_from_headers(state.request.headers))
+        set_ctx(context_from_headers_and_env(
+            state.request.headers,
+            state.request.environ
+        ))
 
     def after(self, state):
         set_ctx(None)

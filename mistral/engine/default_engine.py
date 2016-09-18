@@ -24,6 +24,7 @@ from mistral.engine import action_handler
 from mistral.engine import base
 from mistral.engine import workflow_handler as wf_handler
 from mistral import utils as u
+from mistral.workflow import states
 
 LOG = logging.getLogger(__name__)
 
@@ -71,27 +72,26 @@ class DefaultEngine(base.Engine, coordination.Service):
 
             output = action.run(action_input, target, save=save)
 
+            state = states.SUCCESS if output.is_success() else states.ERROR
+
             # Action execution is not created but we need to return similar
             # object to a client anyway.
             return db_models.ActionExecution(
                 name=action_name,
                 description=description,
                 input=action_input,
-                output=output
+                output=output.to_dict(),
+                state=state
             )
 
     @u.log_exec(LOG)
     @profiler.trace('engine-on-action-complete')
-    def on_action_complete(self, action_ex_id, result):
+    def on_action_complete(self, action_ex_id, result, wf_action=False):
         with db_api.transaction():
-            action_ex = db_api.get_action_execution(action_ex_id)
-
-            task_ex = action_ex.task_execution
-
-            if task_ex:
-                wf_handler.lock_workflow_execution(
-                    task_ex.workflow_execution_id
-                )
+            if wf_action:
+                action_ex = db_api.get_workflow_execution(action_ex_id)
+            else:
+                action_ex = db_api.get_action_execution(action_ex_id)
 
             action_handler.on_action_complete(action_ex, result)
 
@@ -100,7 +100,7 @@ class DefaultEngine(base.Engine, coordination.Service):
     @u.log_exec(LOG)
     def pause_workflow(self, wf_ex_id):
         with db_api.transaction():
-            wf_ex = wf_handler.lock_workflow_execution(wf_ex_id)
+            wf_ex = db_api.get_workflow_execution(wf_ex_id)
 
             wf_handler.pause_workflow(wf_ex)
 
@@ -111,9 +111,7 @@ class DefaultEngine(base.Engine, coordination.Service):
         with db_api.transaction():
             task_ex = db_api.get_task_execution(task_ex_id)
 
-            wf_ex = wf_handler.lock_workflow_execution(
-                task_ex.workflow_execution_id
-            )
+            wf_ex = task_ex.workflow_execution
 
             wf_handler.rerun_workflow(wf_ex, task_ex, reset=reset, env=env)
 
@@ -122,7 +120,7 @@ class DefaultEngine(base.Engine, coordination.Service):
     @u.log_exec(LOG)
     def resume_workflow(self, wf_ex_id, env=None):
         with db_api.transaction():
-            wf_ex = wf_handler.lock_workflow_execution(wf_ex_id)
+            wf_ex = db_api.get_workflow_execution(wf_ex_id)
 
             wf_handler.resume_workflow(wf_ex, env=env)
 
@@ -131,7 +129,7 @@ class DefaultEngine(base.Engine, coordination.Service):
     @u.log_exec(LOG)
     def stop_workflow(self, wf_ex_id, state, message=None):
         with db_api.transaction():
-            wf_ex = wf_handler.lock_workflow_execution(wf_ex_id)
+            wf_ex = db_api.get_workflow_execution(wf_ex_id)
 
             wf_handler.stop_workflow(wf_ex, state, message)
 

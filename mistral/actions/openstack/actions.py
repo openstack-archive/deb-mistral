@@ -52,7 +52,7 @@ CONF = cfg.CONF
 
 
 class NovaAction(base.OpenStackAction):
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Nova action security context: %s" % ctx)
@@ -90,7 +90,7 @@ class GlanceAction(base.OpenStackAction):
     def _get_client_class(cls):
         return glanceclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Glance action security context: %s" % ctx)
@@ -114,7 +114,7 @@ class KeystoneAction(base.OpenStackAction):
     def _get_client_class(cls):
         return keystoneclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Keystone action security context: %s" % ctx)
@@ -160,7 +160,7 @@ class CeilometerAction(base.OpenStackAction):
     def _get_client_class(cls):
         return ceilometerclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Ceilometer action security context: %s" % ctx)
@@ -192,7 +192,7 @@ class HeatAction(base.OpenStackAction):
     def _get_client_class(cls):
         return heatclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Heat action security context: %s" % ctx)
@@ -225,7 +225,7 @@ class NeutronAction(base.OpenStackAction):
     def _get_client_class(cls):
         return neutronclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Neutron action security context: %s" % ctx)
@@ -246,7 +246,7 @@ class CinderAction(base.OpenStackAction):
     def _get_client_class(cls):
         return cinderclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Cinder action security context: %s" % ctx)
@@ -287,7 +287,7 @@ class MistralAction(base.OpenStackAction):
     def _get_client_class(cls):
         return mistralclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Mistral action security context: %s" % ctx)
@@ -324,7 +324,7 @@ class TroveAction(base.OpenStackAction):
     def _get_client_class(cls):
         return troveclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Trove action security context: %s" % ctx)
@@ -362,7 +362,7 @@ class IronicAction(base.OpenStackAction):
     def _get_client_class(cls):
         return ironicclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Ironic action security context: %s" % ctx)
@@ -386,7 +386,29 @@ class BaremetalIntrospectionAction(base.OpenStackAction):
     def _get_client_class(cls):
         return ironic_inspector_client.ClientV1
 
-    def _get_client(self):
+    @classmethod
+    def _get_fake_client(cls):
+        try:
+            # ironic-inspector client tries to get and validate it's own
+            # version when created. This might require checking the keystone
+            # catalog if the ironic-inspector server is not listening on the
+            # localhost IP address. Thus, we get a session for this case.
+            sess = keystone_utils.get_admin_session()
+
+            return cls._get_client_class()(session=sess)
+        except Exception as e:
+            LOG.warning("There was an error trying to create the "
+                        "ironic-inspector client using a session: %s" % str(e))
+            # If it's not possible to establish a keystone session, attempt to
+            # create a client without it. This should fall back to where the
+            # ironic-inspector client tries to get it's own version on the
+            # default IP address.
+            LOG.debug("Attempting to create the ironic-inspector client "
+                      "without a session.")
+
+            return cls._get_client_class()()
+
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Baremetal introspection action security context: %s" % ctx)
@@ -408,7 +430,7 @@ class SwiftAction(base.OpenStackAction):
     def _get_client_class(cls):
         return swift_client.Connection
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Swift action security context: %s" % ctx)
@@ -429,7 +451,7 @@ class ZaqarAction(base.OpenStackAction):
     def _get_client_class(cls):
         return zaqarclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Zaqar action security context: %s" % ctx)
@@ -525,7 +547,7 @@ class BarbicanAction(base.OpenStackAction):
     def _get_client_class(cls):
         return barbicanclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Barbican action security context: %s" % ctx)
@@ -627,7 +649,7 @@ class DesignateAction(base.OpenStackAction):
     def _get_client_class(cls):
         return designateclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Designate action security context: %s" % ctx)
@@ -665,7 +687,7 @@ class MagnumAction(base.OpenStackAction):
     def _get_client_class(cls):
         return magnumclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Magnum action security context: %s" % ctx)
@@ -693,7 +715,7 @@ class MuranoAction(base.OpenStackAction):
     def _get_client_class(cls):
         return muranoclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Murano action security context: %s" % ctx)
@@ -720,7 +742,7 @@ class TackerAction(base.OpenStackAction):
     def _get_client_class(cls):
         return tackerclient.Client
 
-    def _get_client(self):
+    def _create_client(self):
         ctx = context.ctx()
 
         LOG.debug("Tacker action security context: %s" % ctx)

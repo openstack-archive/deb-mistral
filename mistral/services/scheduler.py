@@ -37,23 +37,28 @@ _schedulers = {}
 
 
 def schedule_call(factory_method_path, target_method_name,
-                  run_after, serializers=None, **method_args):
+                  run_after, serializers=None, unique_key=None, **method_args):
     """Schedules call and lately invokes target_method.
 
     Add this call specification to DB, and then after run_after
     seconds service CallScheduler invokes the target_method.
 
     :param factory_method_path: Full python-specific path to
-    factory method for target object construction.
-    :param target_method_name: Name of target object method which
-    will be invoked.
+        factory method that creates a target object that the call will be
+        made against.
+    :param target_method_name: Name of a method which will be invoked.
     :param run_after: Value in seconds.
-    param serializers: map of argument names and their serializer class paths.
-     Use when an argument is an object of specific type, and needs to be
-      serialized. Example:
-      { "result": "mistral.utils.serializer.ResultSerializer"}
-      Serializer for the object type must implement serializer interface
-       in mistral/utils/serializer.py
+    :param serializers: map of argument names and their serializer class
+        paths. Use when an argument is an object of specific type, and needs
+        to be serialized. Example:
+        { "result": "mistral.utils.serializer.ResultSerializer"}
+        Serializer for the object type must implement serializer interface
+        in mistral/utils/serializer.py
+    :param unique_key: Unique key which in combination with 'processing'
+        flag restricts a number of delayed calls if it's passed. For example,
+        if we schedule two calls but pass the same unique key for them then
+        we won't get two of them in DB if both have same value of 'processing'
+        flag.
     :param method_args: Target method keyword arguments.
     """
     ctx_serializer = context.RpcContextSerializer(
@@ -78,12 +83,11 @@ def schedule_call(factory_method_path, target_method_name,
             try:
                 serializer = importutils.import_class(serializer_path)()
             except ImportError as e:
-                raise ImportError("Cannot import class %s: %s"
-                                  % (serializer_path, e))
+                raise ImportError(
+                    "Cannot import class %s: %s" % (serializer_path, e)
+                )
 
-            method_args[arg_name] = serializer.serialize(
-                method_args[arg_name]
-            )
+            method_args[arg_name] = serializer.serialize(method_args[arg_name])
 
     values = {
         'factory_method_path': factory_method_path,
@@ -91,11 +95,12 @@ def schedule_call(factory_method_path, target_method_name,
         'execution_time': execution_time,
         'auth_context': ctx,
         'serializers': serializers,
+        'unique_key': unique_key,
         'method_arguments': method_args,
         'processing': False
     }
 
-    db_api.create_delayed_call(values)
+    db_api.insert_or_ignore_delayed_call(values)
 
 
 class CallScheduler(periodic_task.PeriodicTasks):
@@ -105,15 +110,11 @@ class CallScheduler(periodic_task.PeriodicTasks):
         time_filter = datetime.datetime.now() + datetime.timedelta(
             seconds=1)
 
-        # Wrap delayed calls processing in transaction to
-        # guarantee that calls will be processed just once.
-        # Do delete query to DB first to force hanging up all
-        # parallel transactions.
-        # It should work on isolation level 'READ-COMMITTED',
-        # 'REPEATABLE-READ' and above.
-        #
-        # 'REPEATABLE-READ' is by default in MySQL and
-        # 'READ-COMMITTED is by default in PostgreSQL.
+        # Wrap delayed calls processing in transaction to guarantee that calls
+        # will be processed just once. Do delete query to DB first to force
+        # hanging up all parallel transactions.
+        # It should work with transactions which run at least 'READ-COMMITTED'
+        # mode.
         delayed_calls = []
 
         with db_api.transaction():
@@ -128,7 +129,7 @@ class CallScheduler(periodic_task.PeriodicTasks):
                 result, number_of_updated = db_api.update_delayed_call(
                     id=call.id,
                     values={'processing': True},
-                    query_filter={"processing": False}
+                    query_filter={'processing': False}
                 )
 
                 # If number_of_updated != 1 other scheduler already

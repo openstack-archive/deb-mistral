@@ -1,5 +1,6 @@
 # Copyright 2015 - Mirantis, Inc.
 # Copyright 2015 - StackStorm, Inc.
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -21,15 +22,19 @@ from oslo_db import exception as db_exc
 from oslo_db import sqlalchemy as oslo_sqlalchemy
 from oslo_db.sqlalchemy import utils as db_utils
 from oslo_log import log as logging
-from oslo_utils import uuidutils
+from oslo_utils import uuidutils  # noqa
 import sqlalchemy as sa
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.expression import Insert
 
 from mistral.db.sqlalchemy import base as b
 from mistral.db.sqlalchemy import model_base as mb
 from mistral.db.sqlalchemy import sqlite_lock
+from mistral.db.v2.sqlalchemy import filters as db_filters
 from mistral.db.v2.sqlalchemy import models
 from mistral import exceptions as exc
 from mistral.services import security
+
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -110,6 +115,9 @@ def _lock_entity(model, id):
 def _secure_query(model, *columns):
     query = b.model_query(model, columns)
 
+    if not issubclass(model, mb.MistralSecureModelBase):
+        return query
+
     shared_res_ids = []
     res_type = RESOURCE_MAPPING.get(model, '')
 
@@ -117,14 +125,20 @@ def _secure_query(model, *columns):
         shared_res = _get_accepted_resources(res_type)
         shared_res_ids = [res.resource_id for res in shared_res]
 
-    if issubclass(model, mb.MistralSecureModelBase):
-        query = query.filter(
-            sa.or_(
-                model.project_id == security.get_project_id(),
-                model.scope == 'public',
-                model.id.in_(shared_res_ids)
-            )
+    query_criterion = sa.or_(
+        model.project_id == security.get_project_id(),
+        model.scope == 'public'
+    )
+
+    # NOTE(kong): Include IN_ predicate in query filter only if shared_res_ids
+    # is not empty to avoid sqlalchemy SAWarning and wasting a db call.
+    if shared_res_ids:
+        query_criterion = sa.or_(
+            query_criterion,
+            model.id.in_(shared_res_ids)
         )
+
+    query = query.filter(query_criterion)
 
     return query
 
@@ -134,86 +148,80 @@ def _paginate_query(model, limit=None, marker=None, sort_keys=None,
     if not query:
         query = _secure_query(model)
 
+    sort_keys = sort_keys if sort_keys else []
+
+    if 'id' not in sort_keys:
+        sort_keys.append('id')
+        sort_dirs.append('asc') if sort_dirs else None
+
     query = db_utils.paginate_query(
         query,
         model,
         limit,
-        sort_keys if sort_keys else {},
+        sort_keys,
         marker=marker,
         sort_dirs=sort_dirs
     )
 
-    return query.all()
+    return query
 
 
 def _delete_all(model, session=None, **kwargs):
-    # NOTE(lane): Because we use 'in_' operator in _secure_query(), delete()
+    # NOTE(kong): Because we use 'in_' operator in _secure_query(), delete()
     # method will raise error with default parameter. Please refer to
     # http://docs.sqlalchemy.org/en/rel_1_0/orm/query.html#sqlalchemy.orm.query.Query.delete
     _secure_query(model).filter_by(**kwargs).delete(synchronize_session=False)
 
 
-def _get_collection(model, limit=None, marker=None, sort_keys=None,
-                    sort_dirs=None, fields=None, query=None, **kwargs):
+def _get_collection(model, insecure=False, limit=None, marker=None,
+                    sort_keys=None, sort_dirs=None, fields=None, **filters):
     columns = (
         tuple([getattr(model, f) for f in fields if hasattr(model, f)])
         if fields else ()
     )
 
-    if query is None:
-        tags = kwargs.pop('tags', None)
-        query = _secure_query(model, *columns).filter_by(**kwargs)
+    query = (b.model_query(model, *columns) if insecure
+             else _secure_query(model, *columns))
+    query = db_filters.apply_filters(query, model, **filters)
 
-        # To match the tag list, a resource must contain at least all of the
-        # tags present in the filter parameter.
-        if tags:
-            tag_attr = getattr(model, 'tags')
-            if len(tags) == 1:
-                expr = tag_attr.contains(tags)
-            else:
-                expr = sa.and_(*[tag_attr.contains(tag) for tag in tags])
-            query = query.filter(expr)
+    query = _paginate_query(
+        model,
+        limit,
+        marker,
+        sort_keys,
+        sort_dirs,
+        query
+    )
 
     try:
-        return _paginate_query(
-            model,
-            limit,
-            marker,
-            sort_keys,
-            sort_dirs,
-            query
-        )
+        return query.all()
     except Exception as e:
-        raise exc.DBQueryEntryException(
+        raise exc.DBQueryEntryError(
             "Failed when querying database, error type: %s, "
-            "error message: %s" % (e.__class__.__name__, e.message)
+            "error message: %s" % (e.__class__.__name__, str(e))
         )
 
 
-def _get_collection_sorted_by_name(model, fields=None, sort_keys=['name'],
-                                   **kwargs):
-    # Note(lane): Sometimes tenant_A needs to get resources of tenant_B,
-    # especially in resource sharing scenario, the resource owner needs to
-    # check if the resource is used by a member.
-    columns = (
-        tuple([getattr(model, f) for f in fields if hasattr(model, f)])
-        if fields else ()
-    )
-
-    query = (b.model_query(model, *columns) if 'project_id' in kwargs
-             else _secure_query(model, *columns))
-
+def _get_collection_sorted_by_name(model, insecure=False, fields=None,
+                                   sort_keys=['name'], **kwargs):
     return _get_collection(
         model=model,
-        query=query,
+        insecure=insecure,
         sort_keys=sort_keys,
         fields=fields,
         **kwargs
     )
 
 
-def _get_collection_sorted_by_time(model, sort_keys=['created_at'], **kwargs):
-    return _get_collection(model, sort_keys=sort_keys, **kwargs)
+def _get_collection_sorted_by_time(model, insecure=False, fields=None,
+                                   sort_keys=['created_at'], **kwargs):
+    return _get_collection(
+        model=model,
+        insecure=insecure,
+        sort_keys=sort_keys,
+        fields=fields,
+        **kwargs
+    )
 
 
 def _get_db_object_by_name(model, name):
@@ -224,10 +232,96 @@ def _get_db_object_by_id(model, id):
     return _secure_query(model).filter_by(id=id).first()
 
 
+def _get_db_object_by_name_or_id(model, identifier):
+    query = _secure_query(model)
+    query = query.filter(
+        sa.or_(
+            model.id == identifier,
+            model.name == identifier
+        )
+    )
+
+    return query.first()
+
+
+@compiles(Insert)
+def append_string(insert, compiler, **kw):
+    s = compiler.visit_insert(insert, **kw)
+
+    if 'append_string' in insert.kwargs:
+        append = insert.kwargs['append_string']
+
+        if append:
+            s += " " + append
+
+    if 'replace_string' in insert.kwargs:
+        replace = insert.kwargs['replace_string']
+
+        if isinstance(replace, tuple):
+            s = s.replace(replace[0], replace[1])
+
+    return s
+
+
+@b.session_aware()
+def insert_or_ignore(model_cls, values, session=None):
+    """Insert a new object into DB or ignore if it already exists.
+
+    This method is based on ability of MySQL, PostgreSQL and SQLite
+    to check unique constraint violations and allow user to take a
+    conflict mitigation action. Hence, uniqueness of the object that's
+    being inserted should be considered only from this perspective.
+
+    Note: This method hasn't been tested on databases other than MySQL,
+    PostgreSQL 9.5 or later, and SQLite. Therefore there's no guarantee
+    that it will work with them.
+
+    :param model_cls: Model class.
+    :param values: Values of the new object.
+    """
+
+    model = model_cls()
+
+    model.update(values)
+
+    append = None
+    replace = None
+
+    dialect = b.get_dialect_name()
+
+    if dialect == 'sqlite':
+        replace = ('INSERT INTO', 'INSERT OR IGNORE INTO')
+    elif dialect == 'mysql':
+        append = 'ON DUPLICATE KEY UPDATE id=id'
+    elif dialect == 'postgres':
+        append = 'ON CONFLICT DO NOTHING'
+    else:
+        raise RuntimeError(
+            '"Insert or ignore" is supported only for dialects: sqlite,'
+            ' mysql and postgres. Actual dialect: %s' % dialect
+        )
+
+    insert = model.__table__.insert(
+        append_string=append,
+        replace_string=replace
+    )
+
+    # NOTE(rakhmerov): As it turned out the result proxy object
+    # returned by insert expression does not provide a valid
+    # count of updated rows in for all supported databases.
+    # For this reason we shouldn't return anything from this
+    # method. In order to check whether a new object was really
+    # inserted users should rely on different approaches. The
+    # simplest is just to insert an object with an explicitly
+    # set id and then check if object with such id exists in DB.
+    # Generated id must be unique to make it work.
+    session.execute(insert, model.to_dict())
+
+
 # Workbook definitions.
 
 def get_workbook(name):
-    wb = _get_workbook(name)
+    wb = _get_db_object_by_name(models.Workbook, name)
 
     if not wb:
         raise exc.DBEntityNotFoundError(
@@ -238,7 +332,7 @@ def get_workbook(name):
 
 
 def load_workbook(name):
-    return _get_workbook(name)
+    return _get_db_object_by_name(models.Workbook, name)
 
 
 def get_workbooks(**kwargs):
@@ -263,12 +357,7 @@ def create_workbook(values, session=None):
 
 @b.session_aware()
 def update_workbook(name, values, session=None):
-    wb = _get_workbook(name)
-
-    if not wb:
-        raise exc.DBEntityNotFoundError(
-            "Workbook not found [workbook_name=%s]" % name
-        )
+    wb = get_workbook(name)
 
     wb.update(values.copy())
 
@@ -277,7 +366,7 @@ def update_workbook(name, values, session=None):
 
 @b.session_aware()
 def create_or_update_workbook(name, values, session=None):
-    if not _get_workbook(name):
+    if not _get_db_object_by_name(models.Workbook, name):
         return create_workbook(values)
     else:
         return update_workbook(name, values)
@@ -285,18 +374,9 @@ def create_or_update_workbook(name, values, session=None):
 
 @b.session_aware()
 def delete_workbook(name, session=None):
-    wb = _get_workbook(name)
-
-    if not wb:
-        raise exc.DBEntityNotFoundError(
-            "Workbook not found [workbook_name=%s]" % name
-        )
+    wb = get_workbook(name)
 
     session.delete(wb)
-
-
-def _get_workbook(name):
-    return _get_db_object_by_name(models.Workbook, name)
 
 
 @b.session_aware()
@@ -313,9 +393,10 @@ def get_workflow_definition(identifier):
                        uuid.
     :return: Workflow definition.
     """
-    wf_def = (_get_workflow_definition_by_id(identifier)
-              if uuidutils.is_uuid_like(identifier)
-              else _get_workflow_definition(identifier))
+    wf_def = _get_db_object_by_name_or_id(
+        models.WorkflowDefinition,
+        identifier
+    )
 
     if not wf_def:
         raise exc.DBEntityNotFoundError(
@@ -326,7 +407,7 @@ def get_workflow_definition(identifier):
 
 
 def get_workflow_definition_by_id(id):
-    wf_def = _get_workflow_definition_by_id(id)
+    wf_def = _get_db_object_by_id(models.WorkflowDefinition, id)
 
     if not wf_def:
         raise exc.DBEntityNotFoundError(
@@ -337,7 +418,7 @@ def get_workflow_definition_by_id(id):
 
 
 def load_workflow_definition(name):
-    return _get_workflow_definition(name)
+    return _get_db_object_by_name(models.WorkflowDefinition, name)
 
 
 def get_workflow_definitions(sort_keys=['created_at'], fields=None, **kwargs):
@@ -345,7 +426,7 @@ def get_workflow_definitions(sort_keys=['created_at'], fields=None, **kwargs):
         fields.remove('input')
         fields.append('spec')
 
-    return _get_collection(
+    return _get_collection_sorted_by_name(
         model=models.WorkflowDefinition,
         sort_keys=sort_keys,
         fields=fields,
@@ -385,16 +466,29 @@ def update_workflow_definition(identifier, values, session=None):
         )
 
     if wf_def.scope == 'public' and values['scope'] == 'private':
-        cron_triggers = _get_associated_cron_triggers(identifier)
+        # Check cron triggers.
+        cron_triggers = get_cron_triggers(insecure=True, workflow_id=wf_def.id)
 
-        try:
-            [get_cron_trigger(name) for name in cron_triggers]
-        except exc.DBEntityNotFoundError:
-            raise exc.NotAllowedException(
-                "Can not update scope of workflow that has triggers "
-                "associated in other tenants."
-                "[workflow_identifier=%s]" % identifier
-            )
+        for c_t in cron_triggers:
+            if c_t.project_id != wf_def.project_id:
+                raise exc.NotAllowedException(
+                    "Can not update scope of workflow that has cron triggers "
+                    "associated in other tenants. [workflow_identifier=%s]" %
+                    identifier
+                )
+
+        # Check event triggers.
+        event_triggers = get_event_triggers(
+            insecure=True,
+            workflow_id=wf_def.id
+        )
+        for e_t in event_triggers:
+            if e_t.project_id != wf_def.project_id:
+                raise exc.NotAllowedException(
+                    "Can not update scope of workflow that has event triggers "
+                    "associated in other tenants. [workflow_identifier=%s]" %
+                    identifier
+                )
 
     wf_def.update(values.copy())
 
@@ -403,7 +497,7 @@ def update_workflow_definition(identifier, values, session=None):
 
 @b.session_aware()
 def create_or_update_workflow_definition(name, values, session=None):
-    if not _get_workflow_definition(name):
+    if not _get_db_object_by_name(models.WorkflowDefinition, name):
         return create_workflow_definition(values)
     else:
         return update_workflow_definition(name, values)
@@ -423,13 +517,21 @@ def delete_workflow_definition(identifier, session=None):
         msg = "Attempt to delete a system workflow: %s" % identifier
         raise exc.DataAccessException(msg)
 
-    cron_triggers = _get_associated_cron_triggers(identifier)
-
+    cron_triggers = get_cron_triggers(insecure=True, workflow_id=wf_def.id)
     if cron_triggers:
         raise exc.DBError(
-            "Can't delete workflow that has triggers associated. "
-            "[workflow_identifier=%s], [cron_trigger_name(s)=%s]" %
-            (identifier, ', '.join(cron_triggers))
+            "Can't delete workflow that has cron triggers associated. "
+            "[workflow_identifier=%s], [cron_trigger_id(s)=%s]" %
+            (identifier, ', '.join([t.id for t in cron_triggers]))
+        )
+
+    event_triggers = get_event_triggers(insecure=True, workflow_id=wf_def.id)
+
+    if event_triggers:
+        raise exc.DBError(
+            "Can't delete workflow that has event triggers associated. "
+            "[workflow_identifier=%s], [event_trigger_id(s)=%s]" %
+            (identifier, ', '.join([t.id for t in event_triggers]))
         )
 
     # Delete workflow members first.
@@ -438,32 +540,9 @@ def delete_workflow_definition(identifier, session=None):
     session.delete(wf_def)
 
 
-def _get_associated_cron_triggers(wf_identifier):
-    criterion = (
-        {'workflow_id': wf_identifier}
-        if uuidutils.is_uuid_like(wf_identifier)
-        else {'workflow_name': wf_identifier}
-    )
-
-    cron_triggers = b.model_query(
-        models.CronTrigger,
-        [models.CronTrigger.name]
-    ).filter_by(**criterion).all()
-
-    return [t[0] for t in cron_triggers]
-
-
 @b.session_aware()
 def delete_workflow_definitions(**kwargs):
     return _delete_all(models.WorkflowDefinition, **kwargs)
-
-
-def _get_workflow_definition(name):
-    return _get_db_object_by_name(models.WorkflowDefinition, name)
-
-
-def _get_workflow_definition_by_id(id):
-    return _get_db_object_by_id(models.WorkflowDefinition, id)
 
 
 # Action definitions.
@@ -479,25 +558,27 @@ def get_action_definition_by_id(id):
     return action_def
 
 
-def get_action_definition(name):
-    a_def = _get_action_definition(name)
+def get_action_definition(identifier):
+    a_def = _get_db_object_by_name_or_id(
+        models.ActionDefinition,
+        identifier
+    )
 
     if not a_def:
         raise exc.DBEntityNotFoundError(
-            "Action definition not found [action_name=%s]" % name
+            "Action definition not found [action_name=%s]" % identifier
         )
 
     return a_def
 
 
 def load_action_definition(name):
-    return _get_action_definition(name)
+    return _get_db_object_by_name(models.ActionDefinition, name)
 
 
-def get_action_definitions(sort_keys=['name'], **kwargs):
-    return _get_collection(
+def get_action_definitions(**kwargs):
+    return _get_collection_sorted_by_name(
         model=models.ActionDefinition,
-        sort_keys=sort_keys,
         **kwargs
     )
 
@@ -519,13 +600,8 @@ def create_action_definition(values, session=None):
 
 
 @b.session_aware()
-def update_action_definition(name, values, session=None):
-    a_def = _get_action_definition(name)
-
-    if not a_def:
-        raise exc.DBEntityNotFoundError(
-            "Action definition not found [action_name=%s]" % name
-        )
+def update_action_definition(identifier, values, session=None):
+    a_def = get_action_definition(identifier)
 
     a_def.update(values.copy())
 
@@ -534,20 +610,15 @@ def update_action_definition(name, values, session=None):
 
 @b.session_aware()
 def create_or_update_action_definition(name, values, session=None):
-    if not _get_action_definition(name):
+    if not _get_db_object_by_name(models.ActionDefinition, name):
         return create_action_definition(values)
     else:
         return update_action_definition(name, values)
 
 
 @b.session_aware()
-def delete_action_definition(name, session=None):
-    a_def = _get_action_definition(name)
-
-    if not a_def:
-        raise exc.DBEntityNotFoundError(
-            "Action definition not found [action_name=%s]" % name
-        )
+def delete_action_definition(identifier, session=None):
+    a_def = get_action_definition(identifier)
 
     session.delete(a_def)
 
@@ -557,102 +628,10 @@ def delete_action_definitions(**kwargs):
     return _delete_all(models.ActionDefinition, **kwargs)
 
 
-def _get_action_definition(name):
-    return _get_db_object_by_name(models.ActionDefinition, name)
-
-
-# Common executions.
-
-def get_execution(id):
-    ex = _get_execution(id)
-
-    if not ex:
-        raise exc.DBEntityNotFoundError(
-            "Execution not found [execution_id=%s]" % id
-        )
-
-    return ex
-
-
-def load_execution(id):
-    return _get_execution(id)
-
-
-def ensure_execution_exists(id):
-    get_execution(id)
-
-
-def get_executions(**kwargs):
-    return _get_executions(**kwargs)
-
-
-@b.session_aware()
-def create_execution(values, session=None):
-    ex = models.Execution()
-
-    ex.update(values.copy())
-
-    try:
-        ex.save(session=session)
-    except db_exc.DBDuplicateEntry as e:
-        raise exc.DBDuplicateEntryError(
-            "Duplicate entry for Execution: %s" % e.columns
-        )
-
-    return ex
-
-
-@b.session_aware()
-def update_execution(id, values, session=None):
-    ex = _get_execution(id)
-
-    if not ex:
-        raise exc.DBEntityNotFoundError(
-            "Execution not found [execution_id=%s]" % id
-        )
-
-    ex.update(values.copy())
-
-    return ex
-
-
-@b.session_aware()
-def create_or_update_execution(id, values, session=None):
-    if not _get_execution(id):
-        return create_execution(values)
-    else:
-        return update_execution(id, values)
-
-
-@b.session_aware()
-def delete_execution(id, session=None):
-    ex = _get_execution(id)
-
-    if not ex:
-        raise exc.DBEntityNotFoundError(
-            "Execution not found [execution_id=%s]" % id
-        )
-
-    session.delete(ex)
-
-
-@b.session_aware()
-def delete_executions(**kwargs):
-    return _delete_all(models.Execution, **kwargs)
-
-
-def _get_executions(**kwargs):
-    return _get_collection_sorted_by_time(models.Execution, **kwargs)
-
-
-def _get_execution(id):
-    return _get_db_object_by_id(models.Execution, id)
-
-
 # Action executions.
 
 def get_action_execution(id):
-    a_ex = _get_action_execution(id)
+    a_ex = _get_db_object_by_id(models.ActionExecution, id)
 
     if not a_ex:
         raise exc.DBEntityNotFoundError(
@@ -663,7 +642,7 @@ def get_action_execution(id):
 
 
 def load_action_execution(id):
-    return _get_action_execution(id)
+    return _get_db_object_by_id(models.ActionExecution, id)
 
 
 def ensure_action_execution_exists(id):
@@ -692,12 +671,7 @@ def create_action_execution(values, session=None):
 
 @b.session_aware()
 def update_action_execution(id, values, session=None):
-    a_ex = _get_action_execution(id)
-
-    if not a_ex:
-        raise exc.DBEntityNotFoundError(
-            "ActionExecution not found [id=%s]" % id
-        )
+    a_ex = get_action_execution(id)
 
     a_ex.update(values.copy())
 
@@ -706,7 +680,7 @@ def update_action_execution(id, values, session=None):
 
 @b.session_aware()
 def create_or_update_action_execution(id, values, session=None):
-    if not _get_action_execution(id):
+    if not _get_db_object_by_id(models.ActionExecution, id):
         return create_action_execution(values)
     else:
         return update_action_execution(id, values)
@@ -714,12 +688,7 @@ def create_or_update_action_execution(id, values, session=None):
 
 @b.session_aware()
 def delete_action_execution(id, session=None):
-    a_ex = _get_action_execution(id)
-
-    if not a_ex:
-        raise exc.DBEntityNotFoundError(
-            "ActionExecution not found [id=%s]" % id
-        )
+    a_ex = get_action_execution(id)
 
     session.delete(a_ex)
 
@@ -733,14 +702,10 @@ def _get_action_executions(**kwargs):
     return _get_collection_sorted_by_time(models.ActionExecution, **kwargs)
 
 
-def _get_action_execution(id):
-    return _get_db_object_by_id(models.ActionExecution, id)
-
-
 # Workflow executions.
 
 def get_workflow_execution(id):
-    wf_ex = _get_workflow_execution(id)
+    wf_ex = _get_db_object_by_id(models.WorkflowExecution, id)
 
     if not wf_ex:
         raise exc.DBEntityNotFoundError(
@@ -751,17 +716,16 @@ def get_workflow_execution(id):
 
 
 def load_workflow_execution(id):
-    return _get_workflow_execution(id)
+    return _get_db_object_by_id(models.WorkflowExecution, id)
 
 
 def ensure_workflow_execution_exists(id):
     get_workflow_execution(id)
 
 
-def get_workflow_executions(sort_keys=['created_at'], **kwargs):
-    return _get_collection(
+def get_workflow_executions(**kwargs):
+    return _get_collection_sorted_by_time(
         models.WorkflowExecution,
-        sort_keys=sort_keys,
         **kwargs
     )
 
@@ -784,12 +748,7 @@ def create_workflow_execution(values, session=None):
 
 @b.session_aware()
 def update_workflow_execution(id, values, session=None):
-    wf_ex = _get_workflow_execution(id)
-
-    if not wf_ex:
-        raise exc.DBEntityNotFoundError(
-            "WorkflowExecution not found [id=%s]" % id
-        )
+    wf_ex = get_workflow_execution(id)
 
     wf_ex.update(values.copy())
 
@@ -798,7 +757,7 @@ def update_workflow_execution(id, values, session=None):
 
 @b.session_aware()
 def create_or_update_workflow_execution(id, values, session=None):
-    if not _get_workflow_execution(id):
+    if not _get_db_object_by_id(models.WorkflowExecution, id):
         return create_workflow_execution(values)
     else:
         return update_workflow_execution(id, values)
@@ -806,12 +765,7 @@ def create_or_update_workflow_execution(id, values, session=None):
 
 @b.session_aware()
 def delete_workflow_execution(id, session=None):
-    wf_ex = _get_workflow_execution(id)
-
-    if not wf_ex:
-        raise exc.DBEntityNotFoundError(
-            "WorkflowExecution not found [id=%s]" % id
-        )
+    wf_ex = get_workflow_execution(id)
 
     session.delete(wf_ex)
 
@@ -821,14 +775,10 @@ def delete_workflow_executions(**kwargs):
     return _delete_all(models.WorkflowExecution, **kwargs)
 
 
-def _get_workflow_execution(id):
-    return _get_db_object_by_id(models.WorkflowExecution, id)
-
-
 # Tasks executions.
 
 def get_task_execution(id):
-    task_ex = _get_task_execution(id)
+    task_ex = _get_db_object_by_id(models.TaskExecution, id)
 
     if not task_ex:
         raise exc.DBEntityNotFoundError(
@@ -839,7 +789,7 @@ def get_task_execution(id):
 
 
 def load_task_execution(id):
-    return _get_task_execution(id)
+    return _get_db_object_by_id(models.TaskExecution, id)
 
 
 def get_task_executions(**kwargs):
@@ -862,14 +812,13 @@ def create_task_execution(values, session=None):
     return task_ex
 
 
+def insert_or_ignore_task_execution(values):
+    insert_or_ignore(models.TaskExecution, values.copy())
+
+
 @b.session_aware()
 def update_task_execution(id, values, session=None):
-    task_ex = _get_task_execution(id)
-
-    if not task_ex:
-        raise exc.DBEntityNotFoundError(
-            "TaskExecution not found [id=%s]" % id
-        )
+    task_ex = get_task_execution(id)
 
     task_ex.update(values.copy())
 
@@ -878,7 +827,7 @@ def update_task_execution(id, values, session=None):
 
 @b.session_aware()
 def create_or_update_task_execution(id, values, session=None):
-    if not _get_task_execution(id):
+    if not _get_db_object_by_id(models.TaskExecution, id):
         return create_task_execution(values)
     else:
         return update_task_execution(id, values)
@@ -886,12 +835,7 @@ def create_or_update_task_execution(id, values, session=None):
 
 @b.session_aware()
 def delete_task_execution(id, session=None):
-    task_ex = _get_task_execution(id)
-
-    if not task_ex:
-        raise exc.DBEntityNotFoundError(
-            "TaskExecution not found [id=%s]" % id
-        )
+    task_ex = get_task_execution(id)
 
     session.delete(task_ex)
 
@@ -899,10 +843,6 @@ def delete_task_execution(id, session=None):
 @b.session_aware()
 def delete_task_executions(**kwargs):
     return _delete_all(models.TaskExecution, **kwargs)
-
-
-def _get_task_execution(id):
-    return _get_db_object_by_id(models.TaskExecution, id)
 
 
 def _get_task_executions(**kwargs):
@@ -926,14 +866,13 @@ def create_delayed_call(values, session=None):
     return delayed_call
 
 
+def insert_or_ignore_delayed_call(values):
+    insert_or_ignore(models.DelayedCall, values.copy())
+
+
 @b.session_aware()
 def delete_delayed_call(id, session=None):
-    delayed_call = _get_delayed_call(id)
-
-    if not delayed_call:
-        raise exc.DBEntityNotFoundError(
-            "DelayedCall not found [id=%s]" % id
-        )
+    delayed_call = get_delayed_call(id)
 
     session.delete(delayed_call)
 
@@ -978,7 +917,7 @@ def update_delayed_call(id, values, query_filter=None, session=None):
 
 @b.session_aware()
 def get_delayed_call(id, session=None):
-    delayed_call = _get_delayed_call(id=id, session=session)
+    delayed_call = _get_db_object_by_id(models.DelayedCall, id)
 
     if not delayed_call:
         raise exc.DBEntityNotFoundError(
@@ -986,6 +925,18 @@ def get_delayed_call(id, session=None):
         )
 
     return delayed_call
+
+
+def get_delayed_calls(**kwargs):
+    return _get_collection(
+        model=models.DelayedCall,
+        **kwargs
+    )
+
+
+@b.session_aware()
+def delete_delayed_calls(**kwargs):
+    return _delete_all(models.DelayedCall, **kwargs)
 
 
 @b.session_aware()
@@ -999,24 +950,18 @@ def get_expired_executions(time, session=None):
     query = query.filter(
         sa.or_(
             models.WorkflowExecution.state == "SUCCESS",
-            models.WorkflowExecution.state == "ERROR"
+            models.WorkflowExecution.state == "ERROR",
+            models.WorkflowExecution.state == "CANCELLED"
         )
     )
 
     return query.all()
 
 
-@b.session_aware()
-def _get_delayed_call(id, session=None):
-    query = b.model_query(models.DelayedCall)
-
-    return query.filter_by(id=id).first()
-
-
 # Cron triggers.
 
 def get_cron_trigger(name):
-    cron_trigger = _get_cron_trigger(name)
+    cron_trigger = _get_db_object_by_name(models.CronTrigger, name)
 
     if not cron_trigger:
         raise exc.DBEntityNotFoundError(
@@ -1027,11 +972,15 @@ def get_cron_trigger(name):
 
 
 def load_cron_trigger(name):
-    return _get_cron_trigger(name)
+    return _get_db_object_by_name(models.CronTrigger, name)
 
 
-def get_cron_triggers(**kwargs):
-    return _get_collection_sorted_by_name(models.CronTrigger, **kwargs)
+def get_cron_triggers(insecure=False, **kwargs):
+    return _get_collection_sorted_by_name(
+        models.CronTrigger,
+        insecure=insecure,
+        **kwargs
+    )
 
 
 @b.session_aware()
@@ -1069,12 +1018,7 @@ def create_cron_trigger(values, session=None):
 
 @b.session_aware()
 def update_cron_trigger(name, values, session=None, query_filter=None):
-    cron_trigger = _get_cron_trigger(name)
-
-    if not cron_trigger:
-        raise exc.DBEntityNotFoundError(
-            "Cron trigger not found [name=%s]" % name
-        )
+    cron_trigger = get_cron_trigger(name)
 
     if query_filter:
         try:
@@ -1107,7 +1051,7 @@ def update_cron_trigger(name, values, session=None, query_filter=None):
 
 @b.session_aware()
 def create_or_update_cron_trigger(name, values, session=None):
-    cron_trigger = _get_cron_trigger(name)
+    cron_trigger = _get_db_object_by_name(models.CronTrigger, name)
 
     if not cron_trigger:
         return create_cron_trigger(values)
@@ -1118,12 +1062,7 @@ def create_or_update_cron_trigger(name, values, session=None):
 
 @b.session_aware()
 def delete_cron_trigger(name, session=None):
-    cron_trigger = _get_cron_trigger(name)
-
-    if not cron_trigger:
-        raise exc.DBEntityNotFoundError(
-            "Cron trigger not found [name=%s]" % name
-        )
+    cron_trigger = get_cron_trigger(name)
 
     # Delete the cron trigger by ID and get the affected row count.
     table = models.CronTrigger.__table__
@@ -1139,25 +1078,10 @@ def delete_cron_triggers(**kwargs):
     return _delete_all(models.CronTrigger, **kwargs)
 
 
-def _get_cron_trigger(name):
-    return _get_db_object_by_name(models.CronTrigger, name)
-
-
-def _get_cron_triggers(*columns, **kwargs):
-    query = b.model_query(models.CronTrigger)
-
-    return _get_collection(
-        models.CronTrigger,
-        query=query,
-        *columns,
-        **kwargs
-    )
-
-
 # Environments.
 
 def get_environment(name):
-    env = _get_environment(name)
+    env = _get_db_object_by_name(models.Environment, name)
 
     if not env:
         raise exc.DBEntityNotFoundError(
@@ -1168,7 +1092,7 @@ def get_environment(name):
 
 
 def load_environment(name):
-    return _get_environment(name)
+    return _get_db_object_by_name(models.Environment, name)
 
 
 def get_environments(**kwargs):
@@ -1193,12 +1117,7 @@ def create_environment(values, session=None):
 
 @b.session_aware()
 def update_environment(name, values, session=None):
-    env = _get_environment(name)
-
-    if not env:
-        raise exc.DBEntityNotFoundError(
-            "Environment not found [name=%s]" % name
-        )
+    env = get_environment(name)
 
     env.update(values)
 
@@ -1207,7 +1126,7 @@ def update_environment(name, values, session=None):
 
 @b.session_aware()
 def create_or_update_environment(name, values, session=None):
-    env = _get_environment(name)
+    env = _get_db_object_by_name(models.Environment, name)
 
     if not env:
         return create_environment(values)
@@ -1217,18 +1136,9 @@ def create_or_update_environment(name, values, session=None):
 
 @b.session_aware()
 def delete_environment(name, session=None):
-    env = _get_environment(name)
-
-    if not env:
-        raise exc.DBEntityNotFoundError(
-            "Environment not found [name=%s]" % name
-        )
+    env = get_environment(name)
 
     session.delete(env)
-
-
-def _get_environment(name):
-    return _get_db_object_by_name(models.Environment, name)
 
 
 @b.session_aware()
@@ -1371,7 +1281,7 @@ def delete_resource_member(resource_id, res_type, member_id, session=None):
             (resource_id, member_id)
         )
 
-    # TODO(lane): Check association with cron triggers when deleting a workflow
+    # TODO(kong): Check association with cron triggers when deleting a workflow
     # member which is in 'accepted' status.
 
     session.delete(res_member)
@@ -1392,3 +1302,118 @@ def _get_accepted_resources(res_type):
     ).all()
 
     return resources
+
+
+# Event triggers.
+
+def get_event_trigger(id, insecure=False):
+    event_trigger = _get_event_trigger(id, insecure)
+
+    if not event_trigger:
+        raise exc.DBEntityNotFoundError(
+            "Event trigger not found [id=%s]." % id
+        )
+
+    return event_trigger
+
+
+def get_event_triggers(insecure=False, **kwargs):
+    return _get_collection_sorted_by_time(
+        model=models.EventTrigger,
+        insecure=insecure,
+        **kwargs
+    )
+
+
+@b.session_aware()
+def create_event_trigger(values, session=None):
+    event_trigger = models.EventTrigger()
+
+    event_trigger.update(values)
+
+    try:
+        event_trigger.save(session=session)
+    except db_exc.DBDuplicateEntry as e:
+        raise exc.DBDuplicateEntryError(
+            "Duplicate entry for event trigger %s: %s"
+            % (event_trigger.id, e.columns)
+        )
+    # TODO(nmakhotkin): Remove this 'except' after fixing
+    # https://bugs.launchpad.net/oslo.db/+bug/1458583.
+    except db_exc.DBError as e:
+        raise exc.DBDuplicateEntryError(
+            "Duplicate entry for event trigger: %s" % e
+        )
+
+    return event_trigger
+
+
+@b.session_aware()
+def update_event_trigger(id, values, session=None):
+    event_trigger = get_event_trigger(id)
+
+    event_trigger.update(values.copy())
+
+    return event_trigger
+
+
+@b.session_aware()
+def delete_event_trigger(id, session=None):
+    event_trigger = get_event_trigger(id)
+
+    session.delete(event_trigger)
+
+
+@b.session_aware()
+def delete_event_triggers(**kwargs):
+    return _delete_all(models.EventTrigger, **kwargs)
+
+
+def _get_event_trigger(id, insecure=False):
+    if insecure:
+        return b.model_query(models.EventTrigger).filter_by(id=id).first()
+    else:
+        return _get_db_object_by_id(models.EventTrigger, id)
+
+
+def ensure_event_trigger_exists(id):
+    get_event_trigger(id)
+
+
+# Locks.
+
+@b.session_aware()
+def create_named_lock(name, session=None):
+    # This method has to work without SQLAlchemy session because
+    # session may not immediately issue an SQL query to a database
+    # and instead just schedule it whereas we need to make sure to
+    # issue a query immediately.
+    insert = models.NamedLock.__table__.insert()
+
+    session.execute(insert.values(name=name))
+
+
+def get_named_locks(**kwargs):
+    return _get_collection(models.NamedLock, **kwargs)
+
+
+@b.session_aware()
+def delete_named_lock(name, session=None):
+    # This method has to work without SQLAlchemy session because
+    # session may not immediately issue an SQL query to a database
+    # and instead just schedule it whereas we need to make sure to
+    # issue a query immediately.
+    table = models.NamedLock.__table__
+
+    delete = table.delete()
+
+    session.execute(delete.where(table.c.name == name))
+
+
+@contextlib.contextmanager
+def named_lock(name):
+    try:
+        create_named_lock(name)
+        yield
+    finally:
+        delete_named_lock(name)

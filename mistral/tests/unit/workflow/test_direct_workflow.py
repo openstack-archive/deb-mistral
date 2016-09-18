@@ -17,6 +17,7 @@ import mock
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
 from mistral import exceptions as exc
+from mistral.services import workflows as wf_service
 from mistral.tests.unit import base
 from mistral.workbook import parser as spec_parser
 from mistral.workflow import direct_workflow as d_wf
@@ -25,18 +26,23 @@ from mistral.workflow import states
 
 class DirectWorkflowControllerTest(base.DbTestCase):
     def _prepare_test(self, wf_text):
-        wf_spec = spec_parser.get_workflow_list_spec_from_yaml(wf_text)[0]
+        wfs = wf_service.create_workflows(wf_text)
+        wf_spec = spec_parser.get_workflow_spec_by_definition_id(
+            wfs[0].id,
+            wfs[0].updated_at
+        )
 
-        wf_ex = models.WorkflowExecution()
-        wf_ex.update({
-            'id': '1-2-3-4',
-            'spec': wf_spec.to_dict(),
-            'state': states.RUNNING
-        })
+        wf_ex = models.WorkflowExecution(
+            id='1-2-3-4',
+            spec=wf_spec.to_dict(),
+            state=states.RUNNING,
+            workflow_id=wfs[0].id
+        )
 
         self.wf_ex = wf_ex
         self.wf_spec = wf_spec
-        self.wf_ctrl = d_wf.DirectWorkflowController(wf_ex)
+
+        return wf_ex
 
     def _create_task_execution(self, name, state):
         tasks_spec = self.wf_spec.get_tasks()
@@ -52,8 +58,10 @@ class DirectWorkflowControllerTest(base.DbTestCase):
 
         return task_ex
 
+    @mock.patch.object(db_api, 'get_workflow_execution')
     @mock.patch.object(db_api, 'get_task_execution')
-    def test_continue_workflow(self, get_task_execution):
+    def test_continue_workflow(self, get_task_execution,
+                               get_workflow_execution):
         wf_text = """---
         version: '2.0'
 
@@ -76,16 +84,20 @@ class DirectWorkflowControllerTest(base.DbTestCase):
               action: std.echo output="Hoy"
         """
 
-        self._prepare_test(wf_text)
+        wf_ex = self._prepare_test(wf_text)
+
+        get_workflow_execution.return_value = wf_ex
+
+        wf_ctrl = d_wf.DirectWorkflowController(wf_ex)
 
         # Workflow execution is in initial step. No running tasks.
-        cmds = self.wf_ctrl.continue_workflow()
+        cmds = wf_ctrl.continue_workflow()
 
         self.assertEqual(1, len(cmds))
 
         cmd = cmds[0]
 
-        self.assertIs(self.wf_ctrl.wf_ex, cmd.wf_ex)
+        self.assertIs(wf_ctrl.wf_ex, cmd.wf_ex)
         self.assertIsNotNone(cmd.task_spec)
         self.assertEqual('task1', cmd.task_spec.get_name())
         self.assertEqual(states.RUNNING, self.wf_ex.state)
@@ -96,7 +108,7 @@ class DirectWorkflowControllerTest(base.DbTestCase):
 
         get_task_execution.return_value = task1_ex
 
-        task1_ex.executions.append(
+        task1_ex.action_executions.append(
             models.ActionExecution(
                 name='std.echo',
                 workflow_name='wf',
@@ -107,7 +119,7 @@ class DirectWorkflowControllerTest(base.DbTestCase):
             )
         )
 
-        cmds = self.wf_ctrl.continue_workflow()
+        cmds = wf_ctrl.continue_workflow()
 
         task1_ex.processed = True
 
@@ -119,7 +131,7 @@ class DirectWorkflowControllerTest(base.DbTestCase):
 
         # Now assume that 'task2' completed successfully.
         task2_ex = self._create_task_execution('task2', states.SUCCESS)
-        task2_ex.executions.append(
+        task2_ex.action_executions.append(
             models.ActionExecution(
                 name='std.echo',
                 workflow_name='wf',
@@ -129,7 +141,7 @@ class DirectWorkflowControllerTest(base.DbTestCase):
             )
         )
 
-        cmds = self.wf_ctrl.continue_workflow()
+        cmds = wf_ctrl.continue_workflow()
 
         task2_ex.processed = True
 

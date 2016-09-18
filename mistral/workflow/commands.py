@@ -27,8 +27,9 @@ class WorkflowCommand(object):
     knows what to do next.
     """
 
-    def __init__(self, wf_ex, task_spec, ctx):
+    def __init__(self, wf_ex, wf_spec, task_spec, ctx):
         self.wf_ex = wf_ex
+        self.wf_spec = wf_spec
         self.task_spec = task_spec
         self.ctx = ctx or {}
 
@@ -43,15 +44,17 @@ class Noop(WorkflowCommand):
 class RunTask(WorkflowCommand):
     """Instruction to run a workflow task."""
 
-    def __init__(self, wf_ex, task_spec, ctx):
-        super(RunTask, self).__init__(wf_ex, task_spec, ctx)
+    def __init__(self, wf_ex, wf_spec, task_spec, ctx):
+        super(RunTask, self).__init__(wf_ex, wf_spec, task_spec, ctx)
 
         self.wait = False
+        self.unique_key = None
 
     def is_waiting(self):
-        return (self.wait and
-                isinstance(self.task_spec, tasks.DirectWorkflowTaskSpec) and
-                self.task_spec.get_join())
+        return self.wait
+
+    def get_unique_key(self):
+        return self.unique_key
 
     def __repr__(self):
         return (
@@ -63,22 +66,24 @@ class RunTask(WorkflowCommand):
 class RunExistingTask(WorkflowCommand):
     """Command for running already existent task."""
 
-    def __init__(self, task_ex, reset=True):
+    def __init__(self, wf_ex, wf_spec, task_ex, reset=True):
         super(RunExistingTask, self).__init__(
-            task_ex.workflow_execution,
+            wf_ex,
+            wf_spec,
             spec_parser.get_task_spec(task_ex.spec),
             task_ex.in_context
         )
 
         self.task_ex = task_ex
         self.reset = reset
+        self.unique_key = task_ex.unique_key
 
 
 class SetWorkflowState(WorkflowCommand):
     """Instruction to change a workflow state."""
 
-    def __init__(self, wf_ex, task_spec, ctx, new_state, msg):
-        super(SetWorkflowState, self).__init__(wf_ex, task_spec, ctx)
+    def __init__(self, wf_ex, wf_spec, task_spec, ctx, new_state, msg):
+        super(SetWorkflowState, self).__init__(wf_ex, wf_spec, task_spec, ctx)
 
         self.new_state = new_state
         self.msg = msg
@@ -87,9 +92,10 @@ class SetWorkflowState(WorkflowCommand):
 class FailWorkflow(SetWorkflowState):
     """Instruction to fail a workflow."""
 
-    def __init__(self, wf_ex, task_spec, ctx, msg=None):
+    def __init__(self, wf_ex, wf_spec, task_spec, ctx, msg=None):
         super(FailWorkflow, self).__init__(
             wf_ex,
+            wf_spec,
             task_spec,
             ctx,
             states.ERROR,
@@ -103,9 +109,10 @@ class FailWorkflow(SetWorkflowState):
 class SucceedWorkflow(SetWorkflowState):
     """Instruction to succeed a workflow."""
 
-    def __init__(self, wf_ex, task_spec, ctx, msg=None):
+    def __init__(self, wf_ex, wf_spec, task_spec, ctx, msg=None):
         super(SucceedWorkflow, self).__init__(
             wf_ex,
+            wf_spec,
             task_spec,
             ctx,
             states.SUCCESS,
@@ -119,9 +126,10 @@ class SucceedWorkflow(SetWorkflowState):
 class PauseWorkflow(SetWorkflowState):
     """Instruction to pause a workflow."""
 
-    def __init__(self, wf_ex, task_spec, ctx, msg=None):
+    def __init__(self, wf_ex, wf_spec, task_spec, ctx, msg=None):
         super(PauseWorkflow, self).__init__(
             wf_ex,
+            wf_spec,
             task_spec,
             ctx,
             states.PAUSED,
@@ -146,10 +154,17 @@ def get_command_class(cmd_name):
     return RESERVED_CMDS[cmd_name] if cmd_name in RESERVED_CMDS else None
 
 
-def create_command(cmd_name, wf_ex, task_spec, ctx, explicit_params=None):
+def create_command(cmd_name, wf_ex, wf_spec, task_spec, ctx,
+                   explicit_params=None):
     cmd_cls = get_command_class(cmd_name) or RunTask
 
     if issubclass(cmd_cls, SetWorkflowState):
-        return cmd_cls(wf_ex, task_spec, ctx, explicit_params.get('msg'))
+        return cmd_cls(
+            wf_ex,
+            wf_spec,
+            task_spec,
+            ctx,
+            explicit_params.get('msg')
+        )
     else:
-        return cmd_cls(wf_ex, task_spec, ctx)
+        return cmd_cls(wf_ex, wf_spec, task_spec, ctx)

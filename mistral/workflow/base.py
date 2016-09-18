@@ -43,7 +43,7 @@ def get_controller(wf_ex, wf_spec=None):
     """
 
     if not wf_spec:
-        wf_spec = spec_parser.get_workflow_spec(wf_ex['spec'])
+        wf_spec = spec_parser.get_workflow_spec_by_execution_id(wf_ex.id)
 
     wf_type = wf_spec.get_type()
 
@@ -81,51 +81,65 @@ class WorkflowController(object):
         self.wf_ex = wf_ex
 
         if wf_spec is None:
-            wf_spec = spec_parser.get_workflow_spec(wf_ex.spec)
+            wf_spec = spec_parser.get_workflow_spec_by_execution_id(wf_ex.id)
 
         self.wf_spec = wf_spec
 
-    @staticmethod
-    def _update_task_ex_env(task_ex, env):
-        if not env:
-            return task_ex
-
-        task_ex.in_context['__env'] = u.merge_dicts(
-            task_ex.in_context['__env'],
-            env
-        )
-
-        return task_ex
-
     @profiler.trace('workflow-controller-continue-workflow')
-    def continue_workflow(self, task_ex=None, reset=True, env=None):
+    def continue_workflow(self, task_ex=None):
         """Calculates a list of commands to continue the workflow.
 
         Given a workflow specification this method makes required analysis
         according to this workflow type rules and identifies a list of
         commands needed to continue the workflow.
 
-        :param task_ex: Task execution to rerun.
-        :param reset: If true, then purge action executions for the tasks.
-        :param env: A set of environment variables to overwrite.
+        :param task_ex: Task execution that caused workflow continuation.
+            Optional. If not specified, it means that no certain task caused
+            this operation (e.g. workflow has been just started or resumed
+            manually).
         :return: List of workflow commands (instances of
             mistral.workflow.commands.WorkflowCommand).
+        """
+
+        if self._is_paused_or_completed():
+            return []
+
+        return self._find_next_commands(task_ex)
+
+    def rerun_tasks(self, task_execs, reset=True):
+        """Gets commands to rerun existing task executions.
+
+        :param task_execs: List of task executions.
+        :param reset: If true, then purge action executions for the tasks.
+        :return: List of workflow commands.
         """
         if self._is_paused_or_completed():
             return []
 
-        # TODO(rakhmerov): I think it should rather be a new method
-        # rerun_task() because it covers a different use case.
-        if task_ex:
-            return self._get_rerun_commands([task_ex], reset, env=env)
+        cmds = [
+            commands.RunExistingTask(self.wf_ex, self.wf_spec, t_e, reset)
+            for t_e in task_execs
+        ]
 
-        return self._find_next_commands(env=env)
+        LOG.debug("Commands to rerun workflow tasks: %s" % cmds)
+
+        return cmds
+
+    @abc.abstractmethod
+    def get_logical_task_state(self, task_ex):
+        """Determines a logical state of the given task.
+
+        :param task_ex: Task execution.
+        :return: Tuple (state, state_info) which the given task should have
+            according to workflow rules and current states of other tasks.
+        """
+        raise NotImplementedError
 
     @abc.abstractmethod
     def is_error_handled_for(self, task_ex):
         """Determines if error is handled for specific task.
 
-        :param task_ex: Task execution perform a check for.
+        :param task_ex: Task execution.
         :return: True if either there is no error at all or
             error is considered handled.
         """
@@ -140,6 +154,13 @@ class WorkflowController(object):
         """
         raise NotImplementedError
 
+    def any_cancels(self):
+        """Determines if there are any task cancellations.
+
+        :return: True if there is one or more tasks in cancelled state.
+        """
+        return len(wf_utils.find_cancelled_task_executions(self.wf_ex)) > 0
+
     @abc.abstractmethod
     def evaluate_workflow_final_context(self):
         """Evaluates final workflow context assuming that workflow has finished.
@@ -148,7 +169,9 @@ class WorkflowController(object):
         """
         raise NotImplementedError
 
-    def _get_task_inbound_context(self, task_spec):
+    def get_task_inbound_context(self, task_spec):
+        # TODO(rakhmerov): This method should also be able to work with task_ex
+        # to cover 'split' (aka 'merge') use case.
         upstream_task_execs = self._get_upstream_task_executions(task_spec)
 
         upstream_ctx = data_flow.evaluate_upstream_context(upstream_task_execs)
@@ -176,46 +199,30 @@ class WorkflowController(object):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _find_next_commands(self, env=None):
+    def _find_next_commands(self, task_ex):
         """Finds commands that should run next.
 
         A concrete algorithm of finding such tasks depends on a concrete
         workflow controller.
 
-        :param env: A set of environment variables to overwrite.
         :return: List of workflow commands.
         """
+
+        # If task execution was passed then we should make all calculations
+        # only based on it.
+        if task_ex:
+            return []
+
         # Add all tasks in IDLE state.
         idle_tasks = wf_utils.find_task_executions_with_state(
             self.wf_ex,
             states.IDLE
         )
 
-        for task_ex in idle_tasks:
-            self._update_task_ex_env(task_ex, env)
-
-        return [commands.RunExistingTask(t) for t in idle_tasks]
-
-    def _get_rerun_commands(self, task_exs, reset=True, env=None):
-        """Get commands to rerun existing task executions.
-
-        :param task_exs: List of task executions.
-        :param reset: If true, then purge action executions for the tasks.
-        :param env: A set of environment variables to overwrite.
-        :return: List of workflow commands.
-        """
-
-        for task_ex in task_exs:
-            # TODO(rakhmerov): It is wrong that we update something in
-            # workflow controller, by design it should not change system
-            # state. Fix it, it should happen outside.
-            self._update_task_ex_env(task_ex, env)
-
-        cmds = [commands.RunExistingTask(t_e, reset) for t_e in task_exs]
-
-        LOG.debug("Found commands: %s" % cmds)
-
-        return cmds
+        return [
+            commands.RunExistingTask(self.wf_ex, self.wf_spec, t)
+            for t in idle_tasks
+        ]
 
     def _is_paused_or_completed(self):
         return states.is_paused_or_completed(self.wf_ex.state)
