@@ -15,7 +15,6 @@
 #    limitations under the License.
 
 from mistral.utils import serializers
-from mistral.workflow import states
 
 
 class Result(object):
@@ -47,6 +46,9 @@ class Result(object):
             self.cancel == other.cancel
         )
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def to_dict(self):
         return ({'result': self.data}
                 if self.is_success() else {'result': self.error})
@@ -68,69 +70,3 @@ class ResultSerializer(serializers.Serializer):
             entity['error'],
             entity.get('cancel', False)
         )
-
-
-def find_task_execution_not_state(wf_ex, task_spec, state):
-    task_execs = [
-        t for t in wf_ex.task_executions
-        if t.name == task_spec.get_name() and t.state != state
-    ]
-
-    return task_execs[0] if len(task_execs) > 0 else None
-
-
-def find_task_execution_with_state(wf_ex, task_spec, state):
-    task_execs = [
-        t for t in wf_ex.task_executions
-        if t.name == task_spec.get_name() and t.state == state
-    ]
-
-    return task_execs[0] if len(task_execs) > 0 else None
-
-
-def find_task_executions_by_name(wf_ex, task_name):
-    return [t for t in wf_ex.task_executions if t.name == task_name]
-
-
-def find_task_executions_by_spec(wf_ex, task_spec):
-    return find_task_executions_by_name(wf_ex, task_spec.get_name())
-
-
-def find_task_executions_by_specs(wf_ex, task_specs):
-    res = []
-
-    for t_s in task_specs:
-        res = res + find_task_executions_by_spec(wf_ex, t_s)
-
-    return res
-
-
-def find_task_executions_with_state(wf_ex, state):
-    return [t for t in wf_ex.task_executions if t.state == state]
-
-
-def find_running_task_executions(wf_ex):
-    return find_task_executions_with_state(wf_ex, states.RUNNING)
-
-
-def find_completed_tasks(wf_ex):
-    return [
-        t for t in wf_ex.task_executions if states.is_completed(t.state)
-    ]
-
-
-def find_successful_task_executions(wf_ex):
-    return find_task_executions_with_state(wf_ex, states.SUCCESS)
-
-
-def find_incomplete_task_executions(wf_ex):
-    return [t for t in wf_ex.task_executions
-            if not states.is_completed(t.state)]
-
-
-def find_error_task_executions(wf_ex):
-    return find_task_executions_with_state(wf_ex, states.ERROR)
-
-
-def find_cancelled_task_executions(wf_ex):
-    return find_task_executions_with_state(wf_ex, states.CANCELLED)
