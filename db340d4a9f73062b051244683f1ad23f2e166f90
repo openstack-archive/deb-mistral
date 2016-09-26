@@ -1,0 +1,9 @@
+Code-Review+1: Hardik Parekh <hardik.parekh047@gmail.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 26 Sep 2016 13:03:06 +0000
+Reviewed-on: https://review.openstack.org/376327
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/newton
