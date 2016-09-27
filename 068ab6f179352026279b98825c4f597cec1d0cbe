@@ -1,0 +1,8 @@
+Code-Review+2: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Workflow+1: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 27 Sep 2016 12:25:34 +0000
+Reviewed-on: https://review.openstack.org/377456
+Project: openstack/deb-mistral
+Branch: refs/heads/master
