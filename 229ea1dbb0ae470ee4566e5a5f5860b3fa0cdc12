@@ -1,0 +1,10 @@
+Code-Review+1: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+1: Ravikiran K <rk971w@att.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 27 Sep 2016 06:50:42 +0000
+Reviewed-on: https://review.openstack.org/376334
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/newton
