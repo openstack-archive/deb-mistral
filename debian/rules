@@ -32,10 +32,14 @@ override_dh_auto_install:
 		--namespace mistral.config \
 		--namespace oslo.db \
 		--namespace oslo.messaging \
+		--namespace oslo.middleware.cors \
 		--namespace keystonemiddleware.auth_token \
 		--namespace periodic.config \
 		--namespace oslo.log \
+		--namespace oslo.policy \
+		--namespace oslo.service.sslutils \
 		--output-file $(CURDIR)/debian/mistral-common/usr/share/mistral-common/mistral.conf
+
 	pkgos-fix-config-default $(CURDIR)/debian/mistral-common/usr/share/mistral-common/mistral.conf keystone_authtoken auth_protocol http
 
 override_dh_install:

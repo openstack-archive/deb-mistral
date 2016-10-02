@@ -7,6 +7,7 @@ mistral (3.0.0~rc1-2) UNRELEASED; urgency=medium
   [ Thomas Goirand ]
   * Build-Depends on openstack-pkg-tools >= 53~.
   * Fixed oslotest EPOCH.
+  * Fixed oslo-config-generator namespaces.
 
  -- Thomas Goirand <zigo@debian.org>  Wed, 28 Sep 2016 09:57:26 +0200
 
