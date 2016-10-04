@@ -1,0 +1,10 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+1: Ravikiran K <rk971w@att.com>
+Code-Review+2: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Workflow+1: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 04 Oct 2016 09:40:12 +0000
+Reviewed-on: https://review.openstack.org/379352
+Project: openstack/deb-mistral
+Branch: refs/heads/master
