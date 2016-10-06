@@ -14,7 +14,6 @@
 #    limitations under the License.
 
 import abc
-import copy
 from oslo_config import cfg
 from oslo_log import log as logging
 from osprofiler import profiler
@@ -141,11 +140,6 @@ class Workflow(object):
         # Calculate commands to process next.
         cmds = wf_ctrl.continue_workflow()
 
-        if env:
-            for cmd in cmds:
-                if isinstance(cmd, commands.RunExistingTask):
-                    _update_task_environment(cmd.task_ex, env)
-
         self._continue_workflow(cmds)
 
     def rerun(self, task_ex, reset=True, env=None):
@@ -167,8 +161,6 @@ class Workflow(object):
         wf_service.update_workflow_execution_env(self.wf_ex, env)
 
         self.set_state(states.RUNNING, recursive=True)
-
-        _update_task_environment(task_ex, env)
 
         wf_ctrl = wf_base.get_controller(self.wf_ex)
 
@@ -220,7 +212,6 @@ class Workflow(object):
         })
 
         self.wf_ex.input = input_dict or {}
-        self.wf_ex.context = copy.deepcopy(input_dict) or {}
 
         env = _get_environment(params)
 
@@ -309,18 +300,23 @@ class Workflow(object):
         wf_ctrl = wf_base.get_controller(self.wf_ex, self.wf_spec)
 
         if wf_ctrl.any_cancels():
-            self._cancel_workflow(
-                _build_cancel_info_message(wf_ctrl, self.wf_ex)
-            )
+            msg = _build_cancel_info_message(wf_ctrl, self.wf_ex)
+
+            self._cancel_workflow(msg)
         elif wf_ctrl.all_errors_handled():
-            self._succeed_workflow(wf_ctrl.evaluate_workflow_final_context())
+            ctx = wf_ctrl.evaluate_workflow_final_context()
+
+            self._succeed_workflow(ctx)
         else:
-            self._fail_workflow(_build_fail_info_message(wf_ctrl, self.wf_ex))
+            msg = _build_fail_info_message(wf_ctrl, self.wf_ex)
+
+            self._fail_workflow(msg)
 
         return 0
 
     def _succeed_workflow(self, final_context, msg=None):
         self.wf_ex.output = data_flow.evaluate_workflow_output(
+            self.wf_ex,
             self.wf_spec,
             final_context
         )
@@ -374,16 +370,6 @@ class Workflow(object):
             0,
             wf_ex_id=self.wf_ex.id
         )
-
-
-def _update_task_environment(task_ex, env):
-    if env is None:
-        return
-
-    task_ex.in_context['__env'] = utils.merge_dicts(
-        task_ex.in_context['__env'],
-        env
-    )
 
 
 def _get_environment(params):

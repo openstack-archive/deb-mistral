@@ -14,7 +14,6 @@
 #    limitations under the License.
 
 import abc
-import copy
 import operator
 from oslo_log import log as logging
 from osprofiler import profiler
@@ -241,7 +240,7 @@ class Task(object):
         if not action_name:
             return {}
 
-        env = self.task_ex.in_context.get('__env', {})
+        env = self.wf_ex.context.get('__env', {})
 
         return env.get('__actions', {}).get(action_name, {})
 
@@ -314,7 +313,7 @@ class RegularTask(Task):
         wf_ctrl = wf_base.get_controller(self.wf_ex, self.wf_spec)
 
         self.ctx = wf_ctrl.get_task_inbound_context(self.task_spec)
-        self.task_ex.in_context = self.ctx
+        utils.update_dict(self.task_ex.in_context, self.ctx)
 
     def _reset_actions(self):
         """Resets task state.
@@ -351,18 +350,31 @@ class RegularTask(Task):
         )
 
     def _get_target(self, input_dict):
+        ctx_view = data_flow.ContextView(
+            input_dict,
+            self.ctx,
+            self.wf_ex.context,
+            self.wf_ex.input
+        )
+
         return expr.evaluate_recursively(
             self.task_spec.get_target(),
-            utils.merge_dicts(
-                copy.deepcopy(input_dict),
-                copy.deepcopy(self.ctx)
-            )
+            ctx_view
         )
 
     def _get_action_input(self, ctx=None):
         ctx = ctx or self.ctx
 
-        input_dict = expr.evaluate_recursively(self.task_spec.get_input(), ctx)
+        ctx_view = data_flow.ContextView(
+            ctx,
+            self.wf_ex.context,
+            self.wf_ex.input
+        )
+
+        input_dict = expr.evaluate_recursively(
+            self.task_spec.get_input(),
+            ctx_view
+        )
 
         return utils.merge_dicts(
             input_dict,
@@ -478,9 +490,15 @@ class WithItemsTask(RegularTask):
         :return: the list of tuples containing indexes
         and the corresponding input dict.
         """
+        ctx_view = data_flow.ContextView(
+            self.ctx,
+            self.wf_ex.context,
+            self.wf_ex.input
+        )
+
         with_items_inputs = expr.evaluate_recursively(
             self.task_spec.get_with_items(),
-            self.ctx
+            ctx_view
         )
 
         with_items.validate_input(with_items_inputs)
