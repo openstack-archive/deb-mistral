@@ -1,0 +1,9 @@
+Code-Review+2: Nikolay Mahotkin <nmakhotkin@mirantis.com>
+Code-Review+2: Anastasia Kuznetsova <akuznetsova@mirantis.com>
+Workflow+1: Anastasia Kuznetsova <akuznetsova@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 13 Oct 2016 11:45:52 +0000
+Reviewed-on: https://review.openstack.org/384016
+Project: openstack/deb-mistral
+Branch: refs/heads/master
