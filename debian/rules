@@ -28,6 +28,7 @@ override_dh_auto_install:
 	set -e ; for i in logging.conf wf_trace_logging.conf ; do \
 		install -D -m 0664 etc/$$i.sample $(CURDIR)/debian/mistral-common/usr/share/mistral-common/$$i ; \
 	done
+	install -D -m 0664 etc/policy.json $(CURDIR)/debian/mistral-common/usr/share/mistral-common/policy.json ; \
 	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python2.7/dist-packages oslo-config-generator \
 		--namespace mistral.config \
 		--namespace oslo.db \
@@ -46,6 +47,7 @@ override_dh_install:
 	dh_install --fail-missing
 	# As usual, pbr is missing the alembic.ini
 	cp mistral/db/sqlalchemy/migration/alembic.ini $(CURDIR)/debian/python-mistral/usr/lib/python2.7/dist-packages/mistral/db/sqlalchemy/migration/
+	cp mistral/actions/openstack/mapping.json $(CURDIR)/debian/python-mistral/usr/lib/python2.7/dist-packages/mistral/actions/openstack/
 
 override_dh_auto_build:
 	dh_auto_build
