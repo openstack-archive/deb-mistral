@@ -14,6 +14,7 @@ if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
 
 	pkgos_write_new_conf mistral mistral.conf
 	pkgos_write_new_conf mistral logging.conf
+	pkgos_write_new_conf mistral policy.json
 	pkgos_write_new_conf mistral wf_trace_logging.conf
 	db_get mistral/configure_db
 	if [ "$RET" = "true" ]; then

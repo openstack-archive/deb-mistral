@@ -1,3 +1,15 @@
+mistral (3.0.0-2) unstable; urgency=medium
+
+  [ Corey Bryant ]
+  * d/rules, d/mistral-common.postinst.in, d/mistral-common.postrm:
+    Install missing json files (LP: #1634475).
+  * d/control: Add python-pep8 to Build-Depends.
+
+  [ Thomas Goirand ]
+  * Fixed lsb-base depends.
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 19 Oct 2016 11:05:37 +0200
+
 mistral (3.0.0-1) unstable; urgency=medium
 
   * New upstream release.
