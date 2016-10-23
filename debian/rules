@@ -48,6 +48,7 @@ override_dh_install:
 	# As usual, pbr is missing the alembic.ini
 	cp mistral/db/sqlalchemy/migration/alembic.ini $(CURDIR)/debian/python-mistral/usr/lib/python2.7/dist-packages/mistral/db/sqlalchemy/migration/
 	cp mistral/actions/openstack/mapping.json $(CURDIR)/debian/python-mistral/usr/lib/python2.7/dist-packages/mistral/actions/openstack/
+	cp -r mistral/resources $(CURDIR)/debian/python-mistral/usr/lib/python2.7/dist-packages/mistral/
 
 override_dh_auto_build:
 	dh_auto_build

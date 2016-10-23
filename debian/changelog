@@ -8,6 +8,10 @@ mistral (3.0.0-2) unstable; urgency=medium
   [ Thomas Goirand ]
   * Fixed lsb-base depends.
 
+  [ Gauvain Pocentek ]
+  * d/rules: install missing resources directory, needed when populating the
+    mistral DB
+
  -- Thomas Goirand <zigo@debian.org>  Wed, 19 Oct 2016 11:05:37 +0200
 
 mistral (3.0.0-1) unstable; urgency=medium
