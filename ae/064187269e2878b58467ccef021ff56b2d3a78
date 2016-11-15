@@ -1,0 +1,9 @@
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Code-Review+2: Dawid Deja <dawid.deja@intel.com>
+Workflow+1: Dawid Deja <dawid.deja@intel.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 15 Nov 2016 15:50:20 +0000
+Reviewed-on: https://review.openstack.org/396128
+Project: openstack/deb-mistral
+Branch: refs/heads/master
