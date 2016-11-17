@@ -1,0 +1,8 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 17 Nov 2016 11:52:42 +0000
+Reviewed-on: https://review.openstack.org/398890
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/newton
