@@ -1,3 +1,9 @@
+mistral (3.0.0-3) UNRELEASED; urgency=medium
+
+  * Bumped debhelper compat version to 10
+
+ -- Ondřej Nový <onovy@debian.org>  Wed, 23 Nov 2016 23:59:26 +0100
+
 mistral (3.0.0-2) unstable; urgency=medium
 
   [ Corey Bryant ]
