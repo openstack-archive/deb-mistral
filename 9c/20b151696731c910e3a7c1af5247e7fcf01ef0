@@ -1,0 +1,11 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+1: fengchaoyang <fengchaoyang@unitedstack.com>
+Code-Review+1: Michal Gershenzon <michal.gershenzon@nokia.com>
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Workflow+1: Dougal Matthews <dougal@redhat.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 08 Dec 2016 10:42:47 +0000
+Reviewed-on: https://review.openstack.org/407334
+Project: openstack/deb-mistral
+Branch: refs/heads/master
