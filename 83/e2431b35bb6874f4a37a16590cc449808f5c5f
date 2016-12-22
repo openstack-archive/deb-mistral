@@ -1,0 +1,9 @@
+Code-Review+2: Hardik Parekh <hardik.parekh047@gmail.com>
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Workflow+1: Dougal Matthews <dougal@redhat.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 21 Dec 2016 12:52:42 +0000
+Reviewed-on: https://review.openstack.org/412256
+Project: openstack/deb-mistral
+Branch: refs/heads/master
