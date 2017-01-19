@@ -1,0 +1,11 @@
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+1: jingtao liang <liang.jingtao@zte.com.cn>
+Code-Review+2: Dawid Deja <dawid.deja@intel.com>
+Workflow+1: Dawid Deja <dawid.deja@intel.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 19 Jan 2017 16:53:43 +0000
+Reviewed-on: https://review.openstack.org/421842
+Project: openstack/deb-mistral
+Branch: refs/heads/master
