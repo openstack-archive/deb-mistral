@@ -1,0 +1,8 @@
+Code-Review+2: Hardik Parekh <hardik.parekh047@gmail.com>
+Workflow+1: Hardik Parekh <hardik.parekh047@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sun, 22 Jan 2017 14:29:03 +0000
+Reviewed-on: https://review.openstack.org/423273
+Project: openstack/deb-mistral
+Branch: refs/heads/master
