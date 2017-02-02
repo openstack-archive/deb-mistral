@@ -1,8 +1,8 @@
-mistral (3.0.0-3) UNRELEASED; urgency=medium
+mistral (3.0.0-3) unstable; urgency=medium
 
-  * Bumped debhelper compat version to 10
+  * Patch requirements.txt to accept SQLAlchemy >= 1.1.
 
- -- Ondřej Nový <onovy@debian.org>  Wed, 23 Nov 2016 23:59:26 +0100
+ -- Thomas Goirand <zigo@debian.org>  Thu, 02 Feb 2017 14:10:25 +0100
 
 mistral (3.0.0-2) unstable; urgency=medium
 
