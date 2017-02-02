@@ -1,0 +1,10 @@
+Code-Review+2: Dawid Deja <dawid.deja@intel.com>
+Code-Review+1: Istvan Imre <istvan.imre@nokia.com>
+Code-Review+2: Hardik Parekh <hardik.parekh047@gmail.com>
+Workflow+1: Hardik Parekh <hardik.parekh047@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 01 Feb 2017 08:37:41 +0000
+Reviewed-on: https://review.openstack.org/427136
+Project: openstack/deb-mistral
+Branch: refs/heads/master
