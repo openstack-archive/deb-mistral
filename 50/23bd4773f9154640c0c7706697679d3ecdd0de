@@ -1,0 +1,10 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+2: Lingxian Kong <anlin.kong@gmail.com>
+Workflow+1: Lingxian Kong <anlin.kong@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 06 Mar 2017 12:33:18 +0000
+Reviewed-on: https://review.openstack.org/441831
+Project: openstack/deb-mistral
+Branch: refs/heads/master

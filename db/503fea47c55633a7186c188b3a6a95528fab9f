@@ -1,0 +1,10 @@
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Code-Review+2: Lingxian Kong <anlin.kong@gmail.com>
+Workflow+1: Lingxian Kong <anlin.kong@gmail.com>
+Code-Review+2: Michal Gershenzon <michal.gershenzon@nokia.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 15 Mar 2017 11:41:07 +0000
+Reviewed-on: https://review.openstack.org/444791
+Project: openstack/deb-mistral
+Branch: refs/heads/master

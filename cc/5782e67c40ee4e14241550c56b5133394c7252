@@ -1,0 +1,10 @@
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+2: Nikolay Mahotkin <nikolay.makhotkin@gmail.com>
+Workflow+1: Nikolay Mahotkin <nikolay.makhotkin@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 22 Mar 2017 07:02:22 +0000
+Reviewed-on: https://review.openstack.org/447984
+Project: openstack/deb-mistral
+Branch: refs/heads/master

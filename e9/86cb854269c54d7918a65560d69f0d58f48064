@@ -1,0 +1,9 @@
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Code-Review+2: Michal Gershenzon <michal.gershenzon@nokia.com>
+Workflow+1: Michal Gershenzon <michal.gershenzon@nokia.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 16 Mar 2017 14:45:41 +0000
+Reviewed-on: https://review.openstack.org/435395
+Project: openstack/deb-mistral
+Branch: refs/heads/master

@@ -1,0 +1,8 @@
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Workflow+1: Dougal Matthews <dougal@redhat.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 03 Mar 2017 13:37:05 +0000
+Reviewed-on: https://review.openstack.org/440058
+Project: openstack/deb-mistral
+Branch: refs/heads/master
