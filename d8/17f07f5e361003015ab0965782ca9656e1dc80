@@ -1,0 +1,9 @@
+Code-Review+1: Spencer Yu <yushb@gohighsec.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 10 Mar 2017 06:12:30 +0000
+Reviewed-on: https://review.openstack.org/443817
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/ocata

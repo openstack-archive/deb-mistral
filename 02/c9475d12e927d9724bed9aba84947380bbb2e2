@@ -1,0 +1,8 @@
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 16 Feb 2017 13:56:35 +0000
+Reviewed-on: https://review.openstack.org/434827
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/ocata
