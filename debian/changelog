@@ -1,8 +1,9 @@
-mistral (3.0.0-3) UNRELEASED; urgency=medium
+mistral (3.0.0-3) unstable; urgency=medium
 
-  * Bumped debhelper compat version to 10
+  * Team upload.
+  * Add missing dependency net-tools (Closes: #858705). 
 
- -- Ondřej Nový <onovy@debian.org>  Wed, 23 Nov 2016 23:59:26 +0100
+ -- David Rabel <david.rabel@noresoft.com>  Sat, 25 Mar 2017 12:57:19 +0100
 
 mistral (3.0.0-2) unstable; urgency=medium
 

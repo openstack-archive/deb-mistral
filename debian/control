@@ -3,7 +3,7 @@ Section: net
 Priority: extra
 Maintainer: PKG OpenStack <openstack-devel@lists.alioth.debian.org>
 Uploaders: Thomas Goirand <zigo@debian.org>,
-Build-Depends: debhelper (>= 10),
+Build-Depends: debhelper (>= 9),
                dh-python,
                dh-systemd,
                openstack-pkg-tools (>= 53~),
@@ -221,6 +221,7 @@ Architecture: all
 Depends: adduser,
          debconf,
          mistral-common (= ${source:Version}),
+         net-tools,
          q-text-as-data,
          ${misc:Depends},
          ${ostack-lsb-base},
