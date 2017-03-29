@@ -1,0 +1,10 @@
+Code-Review+1: Ryan Brady <rbrady@redhat.com>
+Code-Review+1: Dougal Matthews <dougal@redhat.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 29 Mar 2017 14:25:59 +0000
+Reviewed-on: https://review.openstack.org/450889
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/ocata
