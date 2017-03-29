@@ -1,0 +1,12 @@
+Code-Review+2: Lingxian Kong <anlin.kong@gmail.com>
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+1: liyi <liyi8611@gmail.com>
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Workflow+1: Dougal Matthews <dougal@redhat.com>
+Code-Review+1: Brad P. Crochet <brad@redhat.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 29 Mar 2017 13:04:05 +0000
+Reviewed-on: https://review.openstack.org/449525
+Project: openstack/deb-mistral
+Branch: refs/heads/master
