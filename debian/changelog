@@ -1,3 +1,11 @@
+mistral (3.0.0-4) unstable; urgency=medium
+
+  * Team upload.
+  * Revert net-tools dependency.
+  * Bump build dependency on openstack-pkg-tools (Closes: #858705).
+
+ -- David Rabel <david.rabel@noresoft.com>  Sat, 01 Apr 2017 11:54:37 +0200
+
 mistral (3.0.0-3) unstable; urgency=medium
 
   * Team upload.
