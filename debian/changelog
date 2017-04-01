@@ -1,9 +1,9 @@
 mistral (3.0.0-3) unstable; urgency=medium
 
   * Team upload.
-  * Add missing dependency net-tools (Closes: #858705). 
+  * Bump build dependency on openstack-pkg-tools (Closes: #858705).
 
- -- David Rabel <david.rabel@noresoft.com>  Sat, 25 Mar 2017 12:57:19 +0100
+ -- David Rabel <david.rabel@noresoft.com>  Sat, 01 Apr 2017 11:54:37 +0200
 
 mistral (3.0.0-2) unstable; urgency=medium
 
