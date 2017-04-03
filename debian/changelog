@@ -1,3 +1,10 @@
+mistral (3.0.0-4) unstable; urgency=medium
+
+  * Add allow-sqla-1.1.patch to allow SQLA transition.
+  * German debconf translation update (Closes: #842487).
+
+ -- Thomas Goirand <zigo@debian.org>  Mon, 03 Apr 2017 18:07:09 +0200
+
 mistral (3.0.0-3) unstable; urgency=medium
 
   * Team upload.
