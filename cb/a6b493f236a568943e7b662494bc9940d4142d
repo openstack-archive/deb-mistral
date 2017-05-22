@@ -1,0 +1,11 @@
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+2: Michal Gershenzon <michal.gershenzon@nokia.com>
+Workflow+1: Dougal Matthews <dougal@redhat.com>
+Code-Review+1: Nikolay Mahotkin <nikolay.makhotkin@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 22 May 2017 15:00:19 +0000
+Reviewed-on: https://review.openstack.org/458000
+Project: openstack/deb-mistral
+Branch: refs/heads/master
