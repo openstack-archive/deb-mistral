@@ -1,0 +1,11 @@
+Code-Review+1: Brad P. Crochet <brad@redhat.com>
+Code-Review+1: Ryan Brady <rbrady@redhat.com>
+Code-Review+2: Michal Gershenzon <michal.gershenzon@nokia.com>
+Code-Review+2: Nikolay Mahotkin <nikolay.makhotkin@gmail.com>
+Workflow+1: Nikolay Mahotkin <nikolay.makhotkin@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 23 May 2017 09:36:53 +0000
+Reviewed-on: https://review.openstack.org/465858
+Project: openstack/deb-mistral
+Branch: refs/heads/master
