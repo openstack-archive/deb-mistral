@@ -1,0 +1,10 @@
+Code-Review+1: Brad P. Crochet <brad@redhat.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 05 Jun 2017 19:27:00 +0000
+Reviewed-on: https://review.openstack.org/469078
+Project: openstack/deb-mistral
+Branch: refs/heads/master
