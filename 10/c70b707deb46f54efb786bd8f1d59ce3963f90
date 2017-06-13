@@ -1,0 +1,11 @@
+Code-Review+1: Ryan Brady <rbrady@redhat.com>
+Code-Review+2: Michal Gershenzon <michal.gershenzon@nokia.com>
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 13 Jun 2017 10:52:50 +0000
+Reviewed-on: https://review.openstack.org/472601
+Project: openstack/deb-mistral
+Branch: refs/heads/master
