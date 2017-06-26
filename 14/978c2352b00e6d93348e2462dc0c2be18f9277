@@ -1,0 +1,10 @@
+Code-Review+1: Adriano Petrich <apetrich@redhat.com>
+Code-Review+1: Andras Kovi <akovi@nokia.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Nikolay Mahotkin <nikolay.makhotkin@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 26 Jun 2017 09:18:35 +0000
+Reviewed-on: https://review.openstack.org/455407
+Project: openstack/deb-mistral
+Branch: refs/heads/master
