@@ -1,0 +1,9 @@
+Code-Review+1: Carlos Camacho <ccamacho@redhat.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 29 Jun 2017 05:11:06 +0000
+Reviewed-on: https://review.openstack.org/478593
+Project: openstack/deb-mistral
+Branch: refs/heads/stable/newton
