@@ -1,0 +1,11 @@
+Code-Review+1: Andras Kovi <akovi@nokia.com>
+Code-Review+2: Dougal Matthews <dougal@redhat.com>
+Code-Review+1: dharmendra kushwaha <dharmendra.kushwaha@nectechnologies.in>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 06 Jul 2017 08:09:31 +0000
+Reviewed-on: https://review.openstack.org/477419
+Project: openstack/deb-mistral
+Branch: refs/heads/master
