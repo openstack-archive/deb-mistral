@@ -1,0 +1,13 @@
+Code-Review+1: Adriano Petrich <apetrich@redhat.com>
+Code-Review+1: Andras Kovi <akovi@nokia.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Code-Review+1: dharmendra kushwaha <dharmendra.kushwaha@nectechnologies.in>
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+2: Lingxian Kong <anlin.kong@gmail.com>
+Workflow+1: Lingxian Kong <anlin.kong@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 11 Jul 2017 22:03:19 +0000
+Reviewed-on: https://review.openstack.org/471484
+Project: openstack/deb-mistral
+Branch: refs/heads/master
