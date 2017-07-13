@@ -1,0 +1,10 @@
+Code-Review+2: Nikolay Mahotkin <nikolay.makhotkin@gmail.com>
+Code-Review+1: Sharat Sharma <sharat.sharma@nectechnologies.in>
+Code-Review+2: Michal Gershenzon <michal.gershenzon@nokia.com>
+Workflow+1: Michal Gershenzon <michal.gershenzon@nokia.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 13 Jul 2017 21:30:06 +0000
+Reviewed-on: https://review.openstack.org/483254
+Project: openstack/deb-mistral
+Branch: refs/heads/master
