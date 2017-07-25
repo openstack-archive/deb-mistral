@@ -1,0 +1,12 @@
+Code-Review+1: Adriano Petrich <apetrich@redhat.com>
+Code-Review+2: Michal Gershenzon <michal.gershenzon@nokia.com>
+Code-Review+1: Andras Kovi <akovi@nokia.com>
+Code-Review+1: Ghanshyam Mann <ghanshyammann@gmail.com>
+Code-Review+2: Renat Akhmerov <renat.akhmerov@gmail.com>
+Workflow+1: Renat Akhmerov <renat.akhmerov@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 25 Jul 2017 05:56:46 +0000
+Reviewed-on: https://review.openstack.org/484620
+Project: openstack/deb-mistral
+Branch: refs/heads/master
