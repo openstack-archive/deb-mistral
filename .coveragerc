@@ -1,9 +1,0 @@
-[run]
-branch = True
-source = mistral
-omit =
- .tox/*
- mistral/tests/*
-
-[report]
-ignore_errors = True

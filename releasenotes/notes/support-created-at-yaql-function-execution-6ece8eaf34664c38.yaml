@@ -1,4 +1,0 @@
----
-features:
-  - Mistral action developer can get the start time of a workflow execution by
-    using ``<% execution().created_at %>``.

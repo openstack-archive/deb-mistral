@@ -1,3 +1,0 @@
----
-fixes:
-  - Fix for YaqlEvaluationException in std.create_instance workflow.

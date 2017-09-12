@@ -1,6 +1,0 @@
----
-features:
-  - Mistral now support usage of alternative RPC layer, that calls RabbitMQ
-    directly instead of using Oslo.
-  - Tasks support new flag 'safe-rerun'. If it is set to 'true', a task would be
-    re-run if executor dies during execution.
